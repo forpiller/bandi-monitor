@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bandi_monitor
+    username: bandi_monitor
+    password: bandi_monitor
+
+logging:
+  level:
+    it.bandimonitor: DEBUG

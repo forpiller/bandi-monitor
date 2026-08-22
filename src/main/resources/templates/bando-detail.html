@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${#strings.abbreviate(bando.titolo, 80)} + ' — Bandi Monitor'">Dettaglio bando</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <style>
+        .detail-page { max-width: 1100px; margin: 32px auto; padding: 0 24px 60px; }
+
+        .detail-back { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: #6b7280; text-decoration: none; margin-bottom: 20px; transition: color 0.15s; }
+        .detail-back:hover { color: #7c3aed; }
+
+        .detail-hero { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 28px 32px; margin-bottom: 20px; }
+        .detail-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+        .detail-hero-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+        .detail-hero-actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .detail-title { font-size: 1.25rem; font-weight: 700; color: #111827; line-height: 1.45; margin: 0; }
+
+        .detail-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .detail-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
+
+        .detail-box { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 24px; }
+        .detail-box-full { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+
+        .detail-box-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #7c3aed; margin-bottom: 14px; }
+
+        .detail-field { margin-bottom: 12px; }
+        .detail-field:last-child { margin-bottom: 0; }
+        .detail-field-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: #9ca3af; font-weight: 600; margin-bottom: 3px; }
+        .detail-field-value { font-size: 0.9rem; color: #111827; font-weight: 500; }
+        .detail-field-value.muted { color: #6b7280; font-weight: 400; }
+        .detail-field-value.large { font-size: 1.3rem; font-weight: 700; color: #059669; }
+        .detail-field-value.scadenza-urgente { color: #dc2626; }
+        .detail-field-value.scadenza-presto { color: #d97706; }
+
+        .detail-desc { font-size: 0.9rem; color: #374151; line-height: 1.75; white-space: pre-wrap; }
+
+        .detail-cpv-row { display: flex; align-items: baseline; gap: 12px; }
+        .detail-cpv-code { font-size: 1.1rem; font-weight: 700; color: #7c3aed; font-family: monospace; }
+        .detail-cpv-desc { font-size: 0.9rem; color: #374151; }
+
+        .detail-meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+
+        .btn-ext { display: inline-flex; align-items: center; gap: 6px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.85rem; font-weight: 600; text-decoration: none; cursor: pointer; transition: background 0.15s; }
+        .btn-ext:hover { background: #6d28d9; }
+        .btn-ext-outline { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: #7c3aed; border: 1px solid #c4b5fd; border-radius: 8px; padding: 8px 16px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: background 0.15s; }
+        .btn-ext-outline:hover { background: #f5f3ff; }
+        .btn-copy-cig { background: none; border: 1px solid #d1d5db; border-radius: 5px; padding: 2px 6px; font-size: 0.85rem; cursor: pointer; color: #6b7280; transition: background 0.12s; }
+        .btn-copy-cig:hover { background: #f3f4f6; }
+        .btn-anac-search { font-size: 0.8rem; color: #2563eb; text-decoration: none; border: 1px solid #bfdbfe; border-radius: 5px; padding: 2px 8px; transition: background 0.12s; }
+        .btn-anac-search:hover { background: #eff6ff; }
+
+        .urgency-banner { border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .urgency-banner.urgente { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .urgency-banner.presto { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+
+        @media (max-width: 700px) {
+            .detail-grid-2, .detail-grid-3 { grid-template-columns: 1fr; }
+            .detail-hero { padding: 18px; }
+        }
+    </style>
+</head>
+<body>
+
+<header th:replace="~{fragments/header :: header}"></header>
+
+<div class="detail-page">
+
+    <a href="javascript:history.back()" class="detail-back">&#8592; Torna ai risultati</a>
+
+    <!-- Banner urgenza scadenza -->
+    <th:block th:with="oggi=${#temporals.createToday()}">
+        <div th:if="${bando.dataScadenza != null and bando.dataScadenza.compareTo(oggi) >= 0 and oggi.plusDays(7).compareTo(bando.dataScadenza) >= 0}"
+             class="urgency-banner urgente">
+            &#9888; Scade tra meno di 7 giorni — <span th:text="${#temporals.format(bando.dataScadenza, 'dd/MM/yyyy')}"></span>
+        </div>
+        <div th:if="${bando.dataScadenza != null and bando.dataScadenza.compareTo(oggi) >= 0 and oggi.plusDays(14).compareTo(bando.dataScadenza) >= 0 and oggi.plusDays(7).compareTo(bando.dataScadenza) < 0}"
+             class="urgency-banner presto">
+            &#9200; Scade tra meno di 14 giorni — <span th:text="${#temporals.format(bando.dataScadenza, 'dd/MM/yyyy')}"></span>
+        </div>
+    </th:block>
+
+    <!-- Hero: titolo + badge + azioni -->
+    <div class="detail-hero">
+        <div class="detail-hero-top">
+            <div class="detail-hero-badges">
+                <span th:if="${bando.tipoDataset != null and bando.tipoDataset.name() == 'GARE_ASP'}" class="badge badge-asp">Gara ASP</span>
+                <span th:if="${bando.tipoDataset != null and bando.tipoDataset.name() == 'BANDI_GARE'}" class="badge badge-bg">Bandi &amp; Gare</span>
+                <span th:if="${bando.tipoDataset != null and bando.tipoDataset.name() == 'ANAC_CIG'}" class="badge badge-anac">ANAC</span>
+                <span th:unless="${bando.tipoDataset != null}" class="badge badge-legacy">Consip</span>
+                <span th:if="${bando.statoGara != null}" class="badge badge-stato"
+                      th:classappend="${'stato-' + #strings.replace(#strings.toLowerCase(bando.statoGara), ' ', '-')}"
+                      th:text="${bando.statoGara}"></span>
+            </div>
+            <div class="detail-hero-actions">
+            </div>
+        </div>
+        <h1 class="detail-title" th:text="${bando.titolo}"></h1>
+    </div>
+
+    <!-- Riga 1: Gara + Ente appaltante -->
+    <div class="detail-grid-2">
+
+        <div class="detail-box">
+            <div class="detail-box-title">Informazioni gara</div>
+            <div class="detail-field" th:if="${bando.categoriaGara != null}">
+                <div class="detail-field-label">Categoria</div>
+                <div class="detail-field-value" th:text="${bando.categoriaGara}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.tipoProcedura != null}">
+                <div class="detail-field-label">Tipo procedura</div>
+                <div class="detail-field-value" th:text="${bando.tipoProcedura}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.tipoStrumento != null}">
+                <div class="detail-field-label">Tipo strumento</div>
+                <div class="detail-field-value" th:text="${bando.tipoStrumento}"></div>
+            </div>
+            <div class="detail-field"
+                 th:if="${bando.tipoDataset != null and bando.tipoDataset.name() == 'ANAC_CIG' and bando.codiceEsterno != null}">
+                <div class="detail-field-label">Codice CIG</div>
+                <div class="detail-field-value" style="display:flex;align-items:center;gap:8px;">
+                    <span th:id="'cigCode'" th:text="${#strings.substring(bando.codiceEsterno, 5)}"></span>
+                    <button type="button" onclick="copyCig()" class="btn-copy-cig" title="Copia CIG">&#128203;</button>
+                    <a th:href="'https://www.anticorruzione.it/ricerca?q=' + ${#strings.substring(bando.codiceEsterno, 5)}"
+                       target="_blank" class="btn-anac-search">Cerca su ANAC &#8599;</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-box">
+            <div class="detail-box-title">Ente appaltante</div>
+            <div class="detail-field" th:if="${bando.denominazioneAmministrazione != null}">
+                <div class="detail-field-label">Denominazione</div>
+                <div class="detail-field-value" th:text="${bando.denominazioneAmministrazione}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.stazioneAppaltante != null}">
+                <div class="detail-field-label">Stazione appaltante</div>
+                <div class="detail-field-value" th:text="${bando.stazioneAppaltante}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.tipoAmministrazione != null}">
+                <div class="detail-field-label">Tipo amministrazione</div>
+                <div class="detail-field-value muted" th:text="${bando.tipoAmministrazione}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.regionePa != null}">
+                <div class="detail-field-label">Regione / Provincia</div>
+                <div class="detail-field-value muted"
+                     th:text="${bando.regionePa + (bando.provinciaPa != null ? ' — ' + bando.provinciaPa : '')}"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Riga 2: Dati economici e temporali -->
+    <div class="detail-grid-3">
+
+        <div class="detail-box">
+            <div class="detail-box-title">Importo base</div>
+            <div th:if="${bando.importoBase != null}">
+                <div class="detail-field-value large"
+                     th:text="'€ ' + ${#numbers.formatDecimal(bando.importoBase, 1, 'COMMA', 2, 'POINT')}"></div>
+            </div>
+            <div th:unless="${bando.importoBase != null}">
+                <div class="detail-field-value muted">Non specificato</div>
+            </div>
+        </div>
+
+        <div class="detail-box">
+            <div class="detail-box-title">Scadenza</div>
+            <th:block th:if="${bando.dataScadenza != null}" th:with="oggi=${#temporals.createToday()}">
+                <div class="detail-field-value"
+                     th:classappend="${bando.dataScadenza.compareTo(oggi) >= 0 and oggi.plusDays(7).compareTo(bando.dataScadenza) >= 0} ? 'scadenza-urgente' : (${bando.dataScadenza.compareTo(oggi) >= 0 and oggi.plusDays(14).compareTo(bando.dataScadenza) >= 0} ? 'scadenza-presto' : '')"
+                     th:text="${#temporals.format(bando.dataScadenza, 'dd MMMM yyyy')}"></div>
+                <div class="detail-field-label" style="margin-top:6px;"
+                     th:if="${bando.dataScadenza.compareTo(oggi) < 0}">Scaduta</div>
+                <div class="detail-field-label" style="margin-top:6px;"
+                     th:if="${bando.dataScadenza.compareTo(oggi) >= 0}">Aperta</div>
+            </th:block>
+            <div th:unless="${bando.dataScadenza != null}">
+                <div class="detail-field-value muted">Non specificata</div>
+            </div>
+        </div>
+
+        <div class="detail-box">
+            <div class="detail-box-title">Periodo riferimento</div>
+            <div class="detail-field" th:if="${bando.annoRiferimento != null}">
+                <div class="detail-field-label">Anno pubblicazione</div>
+                <div class="detail-field-value" th:text="${bando.annoRiferimento}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.meseRiferimento != null}">
+                <div class="detail-field-label">Mese pubblicazione</div>
+                <div class="detail-field-value" th:text="${bando.meseRiferimento}"></div>
+            </div>
+            <div class="detail-field">
+                <div class="detail-field-label">Importato il</div>
+                <div class="detail-field-value muted"
+                     th:text="${#temporals.format(bando.dataImportazione, 'dd/MM/yyyy HH:mm')}"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- CPV -->
+    <div class="detail-box-full" th:if="${bando.codCpv != null}">
+        <div class="detail-box-title">Classificazione CPV</div>
+        <div class="detail-cpv-row">
+            <span class="detail-cpv-code" th:text="${bando.codCpv}"></span>
+            <span class="detail-cpv-desc" th:if="${bando.descrizioneCpv != null}" th:text="${bando.descrizioneCpv}"></span>
+        </div>
+    </div>
+
+    <!-- Descrizione -->
+    <div class="detail-box-full" th:if="${bando.descrizione != null and !#strings.isEmpty(bando.descrizione)}">
+        <div class="detail-box-title">Descrizione</div>
+        <div class="detail-desc" th:text="${bando.descrizione}"></div>
+    </div>
+
+    <!-- Campi extra GARE_ASP -->
+    <div class="detail-box-full"
+         th:if="${bando.tipoDataset != null and bando.tipoDataset.name() == 'GARE_ASP'}">
+        <div class="detail-box-title">Dettagli gara ASP</div>
+        <div class="detail-meta-grid">
+            <div class="detail-field" th:if="${bando.comparto != null and !#strings.isEmpty(bando.comparto)}">
+                <div class="detail-field-label">Comparto</div>
+                <div class="detail-field-value" th:text="${bando.comparto}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.statoLotto != null and !#strings.isEmpty(bando.statoLotto)}">
+                <div class="detail-field-label">Stato lotto</div>
+                <div class="detail-field-value" th:text="${bando.statoLotto}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.oggettoAppalto != null and !#strings.isEmpty(bando.oggettoAppalto)}">
+                <div class="detail-field-label">Oggetto appalto</div>
+                <div class="detail-field-value" th:text="${bando.oggettoAppalto}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.criterioAggiudicazione != null and !#strings.isEmpty(bando.criterioAggiudicazione)}">
+                <div class="detail-field-label">Criterio aggiudicazione</div>
+                <div class="detail-field-value" th:text="${bando.criterioAggiudicazione}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.valoreAggiudicato != null}">
+                <div class="detail-field-label">Valore aggiudicato</div>
+                <div class="detail-field-value"
+                     th:text="'€ ' + ${#numbers.formatDecimal(bando.valoreAggiudicato, 1, 'COMMA', 2, 'POINT')}"></div>
+            </div>
+            <div class="detail-field"
+                 th:if="${bando.siglaProvincia != null and !#strings.isEmpty(bando.siglaProvincia)}">
+                <div class="detail-field-label">Provincia (sigla)</div>
+                <div class="detail-field-value" th:text="${bando.siglaProvincia}"></div>
+            </div>
+            <div class="detail-field"
+                 th:if="${bando.latitudinePa != null and !#strings.isEmpty(bando.latitudinePa)
+                         and bando.longitudinePa != null and !#strings.isEmpty(bando.longitudinePa)}">
+                <div class="detail-field-label">Coordinate PA</div>
+                <div class="detail-field-value">
+                    <a th:href="'https://maps.google.com/?q=' + ${bando.latitudinePa} + ',' + ${bando.longitudinePa}"
+                       target="_blank" class="btn-anac-search">
+                        &#128205; Vedi su mappa
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:12px;">
+            <a th:href="'https://www.acquistinretepa.it/cerca?q=' + ${#uris.escapeQueryParam(bando.titolo)}"
+               target="_blank" class="btn-anac-search">
+                Cerca su Acquisti in Rete PA &#8599;
+            </a>
+        </div>
+    </div>
+
+    <!-- Tags -->
+    <div class="detail-box-full" th:if="${bando.tags != null and !#strings.isEmpty(bando.tags)}">
+        <div class="detail-box-title">Tag / Parole chiave</div>
+        <div class="detail-field-value muted" th:text="${bando.tags}"></div>
+    </div>
+
+    <!-- Metadati tecnici -->
+    <div class="detail-box-full">
+        <div class="detail-box-title">Metadati</div>
+        <div class="detail-meta-grid">
+            <div class="detail-field" th:if="${bando.fonteName != null}">
+                <div class="detail-field-label">Fonte</div>
+                <div class="detail-field-value">
+                    <a th:if="${bando.fonteUrlSito != null}"
+                       th:href="${bando.fonteUrlSito}" target="_blank"
+                       class="detail-url-link" th:text="${bando.fonteName}"></a>
+                    <span th:unless="${bando.fonteUrlSito != null}"
+                          class="detail-field-value muted" th:text="${bando.fonteName}"></span>
+                </div>
+            </div>
+            <div class="detail-field" th:if="${bando.tipoDataset != null}">
+                <div class="detail-field-label">Dataset</div>
+                <div class="detail-field-value muted" th:text="${bando.tipoDataset.name()}"></div>
+            </div>
+            <div class="detail-field">
+                <div class="detail-field-label">Data importazione</div>
+                <div class="detail-field-value muted"
+                     th:text="${#temporals.format(bando.dataImportazione, 'dd/MM/yyyy HH:mm')}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.dataAggiornamento != null}">
+                <div class="detail-field-label">Ultimo aggiornamento</div>
+                <div class="detail-field-value muted"
+                     th:text="${#temporals.format(bando.dataAggiornamento, 'dd/MM/yyyy HH:mm')}"></div>
+            </div>
+            <div class="detail-field" th:if="${bando.stato != null}">
+                <div class="detail-field-label">Stato interno</div>
+                <div class="detail-field-value muted" th:text="${bando.stato.name()}"></div>
+            </div>
+            <div class="detail-field">
+                <div class="detail-field-label">ID interno</div>
+                <div class="detail-field-value muted" th:text="${bando.id}"></div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Cerca online con Bandi-do -->
+    <div class="detail-box-full detail-web-search">
+        <div class="detail-box-title">&#128269; Cerca online con Bandi-do</div>
+        <p class="detail-web-search-hint">
+            Bandi-do cerca su Google, Bing e DuckDuckGo informazioni su questo bando, poi riassume i risultati.
+        </p>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+            <button type="button" class="btn-ext" id="btnCercaWeb"
+                    th:onclick="'cercaOnline(' + ${bando.id} + ')'">
+                &#128269; Cerca e riepiloga online
+            </button>
+            <!-- Fallback link Google diretti -->
+            <a class="detail-search-btn detail-search-google"
+               th:href="'https://www.google.com/search?q=' + ${#uris.escapeQueryParam(bando.titolo)}"
+               target="_blank">Google</a>
+            <a th:if="${bando.fonteName == 'Consip'}"
+               class="detail-search-btn detail-search-consip"
+               th:href="'https://www.google.com/search?q=site:consip.it+' + ${#uris.escapeQueryParam(bando.titolo)}"
+               target="_blank">consip.it</a>
+            <a th:if="${bando.fonteName == 'ANAC'}"
+               class="detail-search-btn detail-search-anac"
+               th:href="'https://www.google.com/search?q=site:anticorruzione.it+' + ${#uris.escapeQueryParam(bando.titolo)}"
+               target="_blank">anticorruzione.it</a>
+        </div>
+
+        <!-- Pannello risultati -->
+        <div id="webSearchPanel" style="display:none;">
+            <div id="webSearchLoading" class="web-search-loading">
+                <span class="ai-loading-text">🤖 Bandi-do sta cercando su internet…</span>
+            </div>
+            <div id="webSearchContent" style="display:none;">
+                <div id="webSearchSummary" class="web-search-summary"></div>
+                <div id="webSearchLinks" class="web-search-links"></div>
+
+                <!-- Chat con Bandi-do -->
+                <div class="bandido-chat-area" id="bandidoChatArea">
+                    <div class="bandido-chat-header">
+                        <span class="ai-response-badge">AI</span>
+                        <span class="ai-response-title">Chatta con Bandi-do</span>
+                    </div>
+                    <div id="bandidoChatMessages" class="bandido-chat-messages"></div>
+                    <div class="bandido-chat-input-row">
+                        <input type="text" id="bandidoChatInput"
+                               class="bandido-chat-input"
+                               placeholder="Chiedi qualcosa a Bandi-do su questo bando…"
+                               onkeydown="if(event.key==='Enter') inviaChat()">
+                        <button type="button" class="btn-ext bandido-chat-send" onclick="inviaChat()">
+                            Invia &#8594;
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="webSearchError" class="web-search-error" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script th:inline="javascript">
+    var _bandoId = /*[[${bando.id}]]*/ 0;
+    var _searchContext = '';
+
+    function copyCig() {
+        var cig = document.getElementById('cigCode').textContent.trim();
+        navigator.clipboard.writeText(cig).then(function() {
+            var btn = document.querySelector('.btn-copy-cig');
+            btn.textContent = '✓';
+            setTimeout(function() { btn.innerHTML = '&#128203;'; }, 1500);
+        });
+    }
+
+    function cercaOnline(bandoId) {
+        var btn = document.getElementById('btnCercaWeb');
+        var panel = document.getElementById('webSearchPanel');
+        var loading = document.getElementById('webSearchLoading');
+        var content = document.getElementById('webSearchContent');
+        var error = document.getElementById('webSearchError');
+
+        btn.disabled = true;
+        btn.textContent = '⏳ Ricerca in corso…';
+        panel.style.display = 'block';
+        loading.style.display = 'block';
+        content.style.display = 'none';
+        error.style.display = 'none';
+
+        fetch('/bandi/' + bandoId + '/cerca-web')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                loading.style.display = 'none';
+                btn.disabled = false;
+                btn.textContent = '🔄 Aggiorna ricerca';
+
+                if (!data.success && (!data.links || data.links.length === 0)) {
+                    error.style.display = 'block';
+                    error.textContent = data.summary || 'Nessun risultato specifico trovato per questo bando.';
+                    return;
+                }
+
+                content.style.display = 'block';
+
+                // Salva contesto per la chat
+                _searchContext = (data.links || [])
+                    .map(function(l) { return l.title + ': ' + l.snippet; })
+                    .join('\n');
+
+                // Summary AI
+                var summaryEl = document.getElementById('webSearchSummary');
+                if (data.summary) {
+                    summaryEl.style.display = 'block';
+                    summaryEl.innerHTML =
+                        '<div class="ai-response-header">'
+                        + '<span class="ai-response-badge">AI</span>'
+                        + '<span class="ai-response-title">Bandi-do — Sintesi web</span>'
+                        + '</div>'
+                        + '<div class="ai-response-content">' + escapeHtml(data.summary) + '</div>';
+                } else {
+                    summaryEl.style.display = 'none';
+                }
+
+                // Links (solo quelli specifici)
+                var linksEl = document.getElementById('webSearchLinks');
+                linksEl.innerHTML = '';
+                if (data.links && data.links.length > 0) {
+                    var header = document.createElement('p');
+                    header.className = 'web-search-links-header';
+                    header.textContent = '📄 ' + data.links.length + ' pagine trovate su questo bando:';
+                    linksEl.appendChild(header);
+
+                    data.links.forEach(function(link) {
+                        var item = document.createElement('div');
+                        item.className = 'web-search-link-item';
+                        item.innerHTML =
+                            '<a href="' + escapeHtml(link.url) + '" target="_blank" class="web-search-link-title">'
+                            + escapeHtml(link.title || link.url) + ' &#8599;</a>'
+                            + (link.engine ? '<span class="web-search-engine">' + escapeHtml(link.engine) + '</span>' : '')
+                            + (link.snippet ? '<p class="web-search-snippet">' + escapeHtml(link.snippet) + '</p>' : '')
+                            + '<p class="web-search-url">' + escapeHtml(link.url) + '</p>';
+                        linksEl.appendChild(item);
+                    });
+                }
+            })
+            .catch(function() {
+                loading.style.display = 'none';
+                btn.disabled = false;
+                btn.textContent = '🔍 Cerca e riepiloga online';
+                error.style.display = 'block';
+                error.textContent = '⚠️ SearXNG non raggiungibile. Avvia il container con: docker-compose up searxng -d';
+            });
+    }
+
+    function inviaChat() {
+        var input = document.getElementById('bandidoChatInput');
+        var msg = input.value.trim();
+        if (!msg) return;
+
+        var messagesEl = document.getElementById('bandidoChatMessages');
+
+        // Mostra messaggio utente
+        var userMsg = document.createElement('div');
+        userMsg.className = 'chat-msg chat-msg-user';
+        userMsg.textContent = msg;
+        messagesEl.appendChild(userMsg);
+        input.value = '';
+
+        // Placeholder risposta AI
+        var aiMsg = document.createElement('div');
+        aiMsg.className = 'chat-msg chat-msg-ai';
+        aiMsg.innerHTML = '<span class="ai-loading-text">🤖 Bandi-do sta scrivendo…</span>';
+        messagesEl.appendChild(aiMsg);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+
+        var params = new URLSearchParams({ message: msg, context: _searchContext });
+        fetch('/bandi/' + _bandoId + '/chat?' + params.toString())
+            .then(function(r) { return r.text(); })
+            .then(function(text) {
+                aiMsg.innerHTML = '<span class="chat-ai-label">Bandi-do</span>' + escapeHtml(text);
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+            })
+            .catch(function() {
+                aiMsg.textContent = '⚠️ Errore nella risposta.';
+            });
+    }
+
+    function escapeHtml(s) {
+        if (!s) return '';
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    </script>
+
+</div>
+
+</body>
+</html>

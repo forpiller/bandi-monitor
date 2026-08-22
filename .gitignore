@@ -1,0 +1,13 @@
+target/
+*.class
+.settings/
+.project
+.classpath
+.idea/
+*.iml
+.DS_Store
+*.log
+BOOT-INF/
+*.jar
+*.dump
+.env

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profili di ricerca — Bandi Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <style>
+        .profili-page { max-width: 900px; margin: 32px auto; padding: 0 24px 60px; }
+        .profili-back { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: #6b7280; text-decoration: none; margin-bottom: 20px; }
+        .profili-back:hover { color: #7c3aed; }
+
+        .profilo-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px 20px; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 16px; }
+        .profilo-card.disattivo { opacity: 0.55; }
+        .profilo-info { flex: 1; min-width: 0; }
+        .profilo-nome { font-size: 0.98rem; font-weight: 700; color: #111827; margin-bottom: 4px; }
+        .profilo-kw { font-size: 0.82rem; color: #6b7280; margin-bottom: 6px; }
+        .profilo-cpv { font-size: 0.78rem; color: #9ca3af; }
+        .profilo-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
+
+        .btn-sm { padding: 5px 12px; font-size: 0.78rem; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; }
+        .btn-sm-cerca { background: #7c3aed; color: #fff; }
+        .btn-sm-cerca:hover { background: #6d28d9; }
+        .btn-sm-edit { background: #f3f4f6; color: #374151; }
+        .btn-sm-edit:hover { background: #e5e7eb; }
+        .btn-sm-toggle-on  { background: #d1fae5; color: #065f46; }
+        .btn-sm-toggle-off { background: #fee2e2; color: #991b1b; }
+        .btn-sm-delete { background: #fee2e2; color: #991b1b; }
+        .btn-sm-delete:hover { background: #fecaca; }
+
+        .nuovo-form { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-top: 24px; }
+        .nuovo-form h3 { margin: 0 0 16px; font-size: 0.95rem; color: #111827; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .form-field { display: flex; flex-direction: column; gap: 4px; }
+        .form-field label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
+        .form-field input, .form-field textarea { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem; font-family: inherit; }
+        .form-field input:focus, .form-field textarea:focus { outline: none; border-color: #7c3aed; }
+        .form-hint { font-size: 0.75rem; color: #9ca3af; margin-top: 2px; }
+
+        /* CPV chip area */
+        .cpv-chips-area { display: flex; flex-wrap: wrap; gap: 6px; min-height: 32px; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; margin-bottom: 6px; }
+        .cpv-chips-area:empty::before { content: 'Nessun codice selezionato'; color: #9ca3af; font-size: 0.8rem; line-height: 1.8; }
+        .cpv-chip { display: inline-flex; align-items: center; gap: 4px; background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; border-radius: 10px; padding: 2px 8px 2px 10px; font-size: 0.78rem; font-weight: 600; font-family: monospace; }
+        .cpv-chip-remove { background: none; border: none; cursor: pointer; color: #7c3aed; padding: 0; font-size: 0.9rem; line-height: 1; opacity: 0.6; }
+        .cpv-chip-remove:hover { opacity: 1; color: #dc2626; }
+        .cpv-browse-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; font-size: 0.78rem; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; color: #374151; cursor: pointer; }
+        .cpv-browse-btn:hover { border-color: #7c3aed; color: #7c3aed; background: #f5f3ff; }
+
+        /* CPV suggestion panel */
+        .cpv-suggeriti-panel { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+        .cpv-sug-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 8px; }
+        .cpv-sug-group { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 6px; }
+        .cpv-sug-group:last-child { margin-bottom: 0; }
+        .cpv-sug-label { font-size: 0.7rem; font-weight: 700; color: #6b7280; min-width: 70px; }
+        .cpv-sug-pill { padding: 3px 10px; font-size: 0.74rem; border: 1px solid #d1d5db; border-radius: 12px; background: #fff; color: #374151; cursor: pointer; transition: all 0.15s; }
+        .cpv-sug-pill:hover { border-color: #7c3aed; color: #7c3aed; background: #f5f3ff; }
+
+        /* Edit modal */
+        .edit-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
+        .edit-modal-overlay.open { display: flex; }
+        .edit-modal { background: #fff; border-radius: 14px; padding: 24px; width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; }
+        .edit-modal h3 { margin: 0 0 16px; font-size: 0.95rem; }
+
+        /* Full CPV modal */
+        .cpv-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; }
+        .cpv-modal-overlay.open { display: flex; }
+        .cpv-modal-box { background: #fff; border-radius: 14px; padding: 0; width: 100%; max-width: 560px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+        .cpv-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #e5e7eb; }
+        .cpv-modal-header strong { font-size: 0.95rem; color: #111827; }
+        .cpv-modal-close { background: none; border: none; cursor: pointer; font-size: 1.1rem; color: #6b7280; padding: 2px 6px; }
+        .cpv-modal-close:hover { color: #111827; }
+        .cpv-modal-search-row { padding: 12px 20px 0; }
+        .cpv-modal-search-row input { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.85rem; box-sizing: border-box; }
+        .cpv-modal-search-row input:focus { outline: none; border-color: #7c3aed; }
+        .cpv-modal-sort-row { display: flex; gap: 6px; padding: 8px 20px; }
+        .cpv-modal-sort-btn { padding: 3px 10px; font-size: 0.75rem; border: 1px solid #d1d5db; border-radius: 12px; background: #fff; color: #374151; cursor: pointer; }
+        .cpv-modal-sort-btn.active { background: #ede9fe; color: #5b21b6; border-color: #c4b5fd; font-weight: 700; }
+        .cpv-modal-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+        .cpv-modal-row { display: flex; align-items: center; gap: 10px; padding: 7px 20px; cursor: pointer; font-size: 0.83rem; }
+        .cpv-modal-row:hover { background: #f9fafb; }
+        .cpv-modal-row.selected { background: #f5f3ff; }
+        .cpv-modal-check { width: 16px; height: 16px; border: 1.5px solid #d1d5db; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #5b21b6; }
+        .cpv-modal-row.selected .cpv-modal-check { background: #ede9fe; border-color: #a78bfa; font-weight: 900; }
+        .cpv-modal-code { font-family: monospace; font-size: 0.8rem; color: #374151; font-weight: 600; flex-shrink: 0; width: 80px; }
+        .cpv-modal-desc { flex: 1; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cpv-modal-count-badge { font-size: 0.7rem; color: #9ca3af; flex-shrink: 0; }
+        .cpv-modal-empty { padding: 24px 20px; color: #9ca3af; font-size: 0.85rem; text-align: center; }
+        .cpv-modal-footer { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-top: 1px solid #e5e7eb; }
+        .cpv-modal-sel-count { font-size: 0.82rem; color: #6b7280; }
+
+        .flash-ok { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 0.85rem; font-weight: 600; }
+    </style>
+</head>
+<body>
+<header th:replace="~{fragments/header :: header}"></header>
+
+<div class="profili-page">
+    <a href="/" class="profili-back">&#8592; Torna alla ricerca</a>
+
+    <h2 style="margin:0 0 4px;font-size:1.2rem;color:#111827;">Profili di ricerca</h2>
+    <p style="margin:0 0 20px;font-size:0.85rem;color:#6b7280;">Ogni profilo attivo appare come pulsante rapido nella homepage.</p>
+
+    <div th:if="${successMessage}" class="flash-ok" th:text="${successMessage}"></div>
+
+    <!-- Lista profili -->
+    <div th:if="${profili.isEmpty()}">
+        <p style="color:#9ca3af;font-size:0.85rem;">Nessun profilo ancora. Creane uno qui sotto.</p>
+    </div>
+
+    <div th:each="p : ${profili}" th:class="${'profilo-card' + (!p.attivo ? ' disattivo' : '')}">
+        <div class="profilo-info">
+            <div class="profilo-nome">
+                <span th:if="${!p.attivo}" style="color:#9ca3af;">&#9646; </span>
+                <span th:text="${p.nome}"></span>
+            </div>
+            <div class="profilo-kw" th:text="'Keywords: ' + ${p.keywords}"></div>
+            <div class="profilo-cpv" th:if="${p.cpvCodes != null and !#strings.isEmpty(p.cpvCodes)}" th:text="'CPV: ' + ${p.cpvCodes}"></div>
+        </div>
+        <div class="profilo-actions">
+            <a th:href="'/?pq=' + ${#uris.escapeQueryParam(p.keywords)} + '&pname=' + ${#uris.escapeQueryParam(p.nome)}"
+               class="btn-sm btn-sm-cerca">Cerca</a>
+            <button type="button" class="btn-sm btn-sm-edit btn-edit-profilo"
+                    th:attr="data-id=${p.id}, data-nome=${p.nome}, data-keywords=${p.keywords}, data-cpv=${p.cpvCodes}">
+                Modifica
+            </button>
+            <form method="post" th:action="'/profili/' + ${p.id} + '/toggle'" style="margin:0">
+                <button type="submit"
+                        th:class="${'btn-sm ' + (p.attivo ? 'btn-sm-toggle-on' : 'btn-sm-toggle-off')}"
+                        th:text="${p.attivo ? '✓ Attivo' : '✗ Disattivo'}"></button>
+            </form>
+            <form method="post" th:action="'/profili/' + ${p.id} + '/elimina'" style="margin:0"
+                  onsubmit="return confirm('Eliminare questo profilo?')">
+                <button type="submit" class="btn-sm btn-sm-delete">Elimina</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Form nuovo profilo -->
+    <div class="nuovo-form">
+        <h3>+ Nuovo profilo</h3>
+        <form method="post" action="/profili/nuovo">
+            <div class="form-row">
+                <div class="form-field">
+                    <label>Nome profilo *</label>
+                    <input type="text" name="nome" placeholder="es. Arredi didattici 0-6 anni" required>
+                </div>
+                <div class="form-field">
+                    <label>Codici CPV</label>
+                    <div class="cpv-chips-area" id="nuovoCpvChips"></div>
+                    <button type="button" class="cpv-browse-btn" onclick="aprireCpvModal('nuovo')">&#128269; Sfoglia CPV nel database</button>
+                    <input type="hidden" name="cpvCodes" id="nuovoCpvHidden">
+                </div>
+            </div>
+            <!-- Suggeriti nuovo -->
+            <div class="cpv-suggeriti-panel">
+                <div class="cpv-sug-title">CPV suggeriti per attrezzature scolastiche:</div>
+                <div class="cpv-sug-group">
+                    <span class="cpv-sug-label">Dispositivi</span>
+                    <button type="button" class="cpv-sug-pill" data-prefix="nuovo" data-code="30213100">30213100 — Laptop / Tablet</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="nuovo" data-code="30213300">30213300 — PC Desktop</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="nuovo" data-code="32322000">32322000 — Monitor / LIM</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="nuovo" data-code="38652100">38652100 — Videoproiettori</button>
+                </div>
+                <div class="cpv-sug-group">
+                    <span class="cpv-sug-label">Arredi</span>
+                    <button type="button" class="cpv-sug-pill" data-prefix="nuovo" data-code="39160000">39160000 — Arredo scolastico</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="nuovo" data-code="39161000">39161000 — Nido / infanzia</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="nuovo" data-code="39162100">39162100 — Sussidi didattici</button>
+                </div>
+                <div class="cpv-sug-group">
+                    <span class="cpv-sug-label">Sport e lab</span>
+                    <button type="button" class="cpv-sug-pill" data-prefix="nuovo" data-code="37400000">37400000 — Attrezzature sportive</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="nuovo" data-code="37520000">37520000 — Robotica educativa</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="nuovo" data-code="33196200">33196200 — Ausili BES / disabilità</button>
+                </div>
+            </div>
+            <div class="form-field" style="margin-bottom:14px;">
+                <label>Keywords di ricerca *</label>
+                <input type="text" name="keywords" placeholder="es. arredi didattici innovativi nido infanzia" required>
+                <span class="form-hint">Parole chiave per trovare le gare ANAC — non passano per l'AI</span>
+            </div>
+            <button type="submit" class="btn btn-primary">Crea profilo</button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal modifica -->
+<div class="edit-modal-overlay" id="editOverlay" onclick="if(event.target===this) chiudiEdit()">
+    <div class="edit-modal">
+        <h3>Modifica profilo</h3>
+        <form method="post" id="editForm">
+            <div class="form-row" style="margin-bottom:12px;">
+                <div class="form-field">
+                    <label>Nome *</label>
+                    <input type="text" name="nome" id="editNome" required>
+                </div>
+                <div class="form-field">
+                    <label>Codici CPV</label>
+                    <div class="cpv-chips-area" id="editCpvChips"></div>
+                    <button type="button" class="cpv-browse-btn" onclick="aprireCpvModal('edit')">&#128269; Sfoglia CPV nel database</button>
+                    <input type="hidden" name="cpvCodes" id="editCpvHidden">
+                </div>
+            </div>
+            <!-- Suggeriti edit -->
+            <div class="cpv-suggeriti-panel" style="margin-bottom:12px;">
+                <div class="cpv-sug-group">
+                    <span class="cpv-sug-label">Dispositivi</span>
+                    <button type="button" class="cpv-sug-pill" data-prefix="edit" data-code="30213100">30213100 — Laptop</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="edit" data-code="30213300">30213300 — PC Desktop</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="edit" data-code="32322000">32322000 — Monitor / LIM</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="edit" data-code="38652100">38652100 — Videoproiettori</button>
+                </div>
+                <div class="cpv-sug-group">
+                    <span class="cpv-sug-label">Arredi</span>
+                    <button type="button" class="cpv-sug-pill" data-prefix="edit" data-code="39160000">39160000 — Arredo scolastico</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="edit" data-code="39161000">39161000 — Nido / infanzia</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="edit" data-code="39162100">39162100 — Sussidi didattici</button>
+                </div>
+                <div class="cpv-sug-group">
+                    <span class="cpv-sug-label">Sport e lab</span>
+                    <button type="button" class="cpv-sug-pill" data-prefix="edit" data-code="37400000">37400000 — Sport</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="edit" data-code="37520000">37520000 — Robotica</button>
+                    <button type="button" class="cpv-sug-pill" data-prefix="edit" data-code="33196200">33196200 — Ausili BES</button>
+                </div>
+            </div>
+            <div class="form-field" style="margin-bottom:14px;">
+                <label>Keywords *</label>
+                <input type="text" name="keywords" id="editKeywords" required>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button type="submit" class="btn btn-primary">Salva</button>
+                <button type="button" class="btn btn-secondary" onclick="chiudiEdit()">Annulla</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modale CPV completa -->
+<div class="cpv-modal-overlay" id="cpvModalOverlay" onclick="if(event.target===this) chiudiCpvModal()">
+    <div class="cpv-modal-box">
+        <div class="cpv-modal-header">
+            <strong>Seleziona codici CPV</strong>
+            <button class="cpv-modal-close" onclick="chiudiCpvModal()">&#215;</button>
+        </div>
+        <div class="cpv-modal-search-row">
+            <input type="text" id="cpvModalSearch" placeholder="Cerca per codice o descrizione..." oninput="renderCpvList()">
+        </div>
+        <div class="cpv-modal-sort-row">
+            <button class="cpv-modal-sort-btn active" id="sortBtnCount" onclick="setCpvSort('count')">Per frequenza</button>
+            <button class="cpv-modal-sort-btn" id="sortBtnCode" onclick="setCpvSort('code')">Per codice</button>
+            <button class="cpv-modal-sort-btn" id="sortBtnDesc" onclick="setCpvSort('desc')">Alfabetico</button>
+        </div>
+        <div class="cpv-modal-list" id="cpvModalList"></div>
+        <div class="cpv-modal-footer">
+            <span class="cpv-modal-sel-count" id="cpvModalSelCount">0 selezionati</span>
+            <button class="btn btn-primary" onclick="chiudiCpvModal()">Conferma</button>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+const cpvDataBase = /*[[${cpvList}]]*/ [];
+</script>
+<script>
+let cpvCurrentPrefix = null;
+let cpvSortMode = 'count';
+
+/* ---- chip utilities ---- */
+
+function addChip(prefix, code) {
+    var area = document.getElementById(prefix + 'CpvChips');
+    if (area.querySelector('.cpv-chip[data-code="' + code + '"]')) return;
+    var chip = document.createElement('span');
+    chip.className = 'cpv-chip';
+    chip.dataset.code = code;
+    chip.innerHTML = code +
+        ' <button type="button" class="cpv-chip-remove" title="Rimuovi">&#215;</button>';
+    chip.querySelector('.cpv-chip-remove').addEventListener('click', function() {
+        removeChip(prefix, code);
+    });
+    area.appendChild(chip);
+    updateHiddenInput(prefix);
+}
+
+function removeChip(prefix, code) {
+    var area = document.getElementById(prefix + 'CpvChips');
+    var chip = area.querySelector('.cpv-chip[data-code="' + code + '"]');
+    if (chip) chip.remove();
+    // restore suggestion pill if present
+    var pill = document.querySelector('.cpv-sug-pill[data-prefix="' + prefix + '"][data-code="' + code + '"]');
+    if (pill) pill.style.display = '';
+    updateHiddenInput(prefix);
+    updateCpvModalCount();
+}
+
+function getSelectedCodes(prefix) {
+    return Array.from(
+        document.querySelectorAll('#' + prefix + 'CpvChips .cpv-chip')
+    ).map(function(c) { return c.dataset.code; });
+}
+
+function updateHiddenInput(prefix) {
+    document.getElementById(prefix + 'CpvHidden').value =
+        getSelectedCodes(prefix).join(', ');
+}
+
+/* ---- suggestion pills ---- */
+
+document.querySelectorAll('.cpv-sug-pill').forEach(function(pill) {
+    pill.addEventListener('click', function() {
+        var prefix = pill.dataset.prefix;
+        var code = pill.dataset.code;
+        addChip(prefix, code);
+        pill.style.display = 'none';
+    });
+});
+
+/* ---- edit modal ---- */
+
+document.querySelectorAll('.btn-edit-profilo').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        // reset
+        document.getElementById('editCpvChips').innerHTML = '';
+        document.querySelectorAll('.cpv-sug-pill[data-prefix="edit"]').forEach(function(p) {
+            p.style.display = '';
+        });
+
+        document.getElementById('editNome').value = btn.dataset.nome || '';
+        document.getElementById('editKeywords').value = btn.dataset.keywords || '';
+        document.getElementById('editForm').action = '/profili/' + btn.dataset.id + '/aggiorna';
+
+        // restore saved codes as chips
+        var saved = (btn.dataset.cpv || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+        saved.forEach(function(code) {
+            addChip('edit', code);
+            var pill = document.querySelector('.cpv-sug-pill[data-prefix="edit"][data-code="' + code + '"]');
+            if (pill) pill.style.display = 'none';
+        });
+
+        document.getElementById('editOverlay').classList.add('open');
+    });
+});
+
+function chiudiEdit() {
+    document.getElementById('editOverlay').classList.remove('open');
+}
+
+/* ---- full CPV modal ---- */
+
+function aprireCpvModal(prefix) {
+    cpvCurrentPrefix = prefix;
+    document.getElementById('cpvModalSearch').value = '';
+    renderCpvList();
+    updateCpvModalCount();
+    document.getElementById('cpvModalOverlay').classList.add('open');
+}
+
+function chiudiCpvModal() {
+    document.getElementById('cpvModalOverlay').classList.remove('open');
+    cpvCurrentPrefix = null;
+}
+
+function setCpvSort(mode) {
+    cpvSortMode = mode;
+    document.querySelectorAll('.cpv-modal-sort-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.getElementById('sortBtn' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
+    renderCpvList();
+}
+
+function renderCpvList() {
+    var search = (document.getElementById('cpvModalSearch').value || '').toLowerCase().trim();
+    var selected = cpvCurrentPrefix ? getSelectedCodes(cpvCurrentPrefix) : [];
+    var list = document.getElementById('cpvModalList');
+
+    var items = cpvDataBase.filter(function(r) { return r[0]; });
+    if (search) {
+        items = items.filter(function(r) {
+            return r[0].indexOf(search) >= 0 ||
+                (r[1] && r[1].toLowerCase().indexOf(search) >= 0);
+        });
+    }
+
+    if (cpvSortMode === 'code') {
+        items.sort(function(a, b) { return String(a[0]).localeCompare(String(b[0])); });
+    } else if (cpvSortMode === 'desc') {
+        items.sort(function(a, b) { return (a[1] || '').localeCompare(b[1] || ''); });
+    } else {
+        items.sort(function(a, b) { return (b[2] || 0) - (a[2] || 0); });
+    }
+
+    list.innerHTML = '';
+
+    if (items.length === 0) {
+        list.innerHTML = '<div class="cpv-modal-empty">Nessun CPV trovato</div>';
+        return;
+    }
+
+    items.forEach(function(r) {
+        var code = String(r[0]);
+        var desc = r[1] || '';
+        var count = r[2] || 0;
+        var isSel = selected.indexOf(code) >= 0;
+
+        var row = document.createElement('div');
+        row.className = 'cpv-modal-row' + (isSel ? ' selected' : '');
+        row.innerHTML =
+            '<span class="cpv-modal-check">' + (isSel ? '&#10003;' : '') + '</span>' +
+            '<span class="cpv-modal-code">' + code + '</span>' +
+            '<span class="cpv-modal-desc" title="' + desc + '">' + desc + '</span>' +
+            (count > 0 ? '<span class="cpv-modal-count-badge">' + count + '</span>' : '');
+
+        row.addEventListener('click', function() {
+            var prefix = cpvCurrentPrefix;
+            var chip = document.getElementById(prefix + 'CpvChips')
+                               .querySelector('.cpv-chip[data-code="' + code + '"]');
+            if (chip) {
+                removeChip(prefix, code);
+            } else {
+                addChip(prefix, code);
+                // hide suggestion pill if present
+                var pill = document.querySelector('.cpv-sug-pill[data-prefix="' + prefix + '"][data-code="' + code + '"]');
+                if (pill) pill.style.display = 'none';
+            }
+            renderCpvList();
+            updateCpvModalCount();
+        });
+
+        list.appendChild(row);
+    });
+}
+
+function updateCpvModalCount() {
+    var count = cpvCurrentPrefix
+        ? document.querySelectorAll('#' + cpvCurrentPrefix + 'CpvChips .cpv-chip').length
+        : 0;
+    document.getElementById('cpvModalSelCount').textContent = count + ' selezionati';
+}
+</script>
+</body>
+</html>

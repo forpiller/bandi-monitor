@@ -1,0 +1,1947 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bandi Monitor</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+
+<header th:replace="~{fragments/header :: header}"></header>
+
+<div th:if="${successMessage}" class="flash-bar flash-success" th:text="${successMessage}"></div>
+<div th:if="${errorMessage}" class="flash-bar flash-error" th:text="${errorMessage}"></div>
+
+<div class="source-info-bar">
+    <div class="source-info-item">
+        <span class="source-info-label badge badge-asp">Consip</span>
+        <span th:if="${fonteConsip != null and fonteConsip.ultimaSincronizzazione != null}">
+            aggiornato il <strong th:text="${#temporals.format(fonteConsip.ultimaSincronizzazione, 'dd/MM/yyyy HH:mm')}"></strong>
+            &mdash;
+            <span th:if="${minAnnoConsip != null and maxAnnoConsip != null and minAnnoConsip == maxAnnoConsip}"
+                  th:text="'anno ' + ${minAnnoConsip}"></span>
+            <span th:if="${minAnnoConsip != null and maxAnnoConsip != null and minAnnoConsip != maxAnnoConsip}"
+                  th:text="'anni ' + ${minAnnoConsip} + '–' + ${maxAnnoConsip}"></span>
+            &mdash; <span th:text="${countConsip}"></span> record
+        </span>
+        <span th:unless="${fonteConsip != null and fonteConsip.ultimaSincronizzazione != null}" class="source-info-empty">mai aggiornato</span>
+    </div>
+    <div class="source-info-item">
+        <span class="source-info-label badge badge-anac">ANAC</span>
+        <span th:if="${fonteAnac != null and fonteAnac.ultimaSincronizzazione != null}">
+            aggiornato il <strong th:text="${#temporals.format(fonteAnac.ultimaSincronizzazione, 'dd/MM/yyyy HH:mm')}"></strong>
+            &mdash;
+            <span th:if="${minAnnoAnac != null and maxAnnoAnac != null and minAnnoAnac == maxAnnoAnac}"
+                  th:text="'anno ' + ${minAnnoAnac}"></span>
+            <span th:if="${minAnnoAnac != null and maxAnnoAnac != null and minAnnoAnac != maxAnnoAnac}"
+                  th:text="'anni ' + ${minAnnoAnac} + '–' + ${maxAnnoAnac}"></span>
+            &mdash; <span th:text="${countAnac}"></span> record
+        </span>
+        <span th:unless="${fonteAnac != null and fonteAnac.ultimaSincronizzazione != null}" class="source-info-empty">mai aggiornato</span>
+    </div>
+</div>
+
+<div class="filter-panel">
+    <form method="get" action="/" id="filterForm">
+        <input type="hidden" name="page" id="pageInput" value="0">
+        <input type="hidden" name="pq" id="pqInput" th:value="${pq}">
+        <input type="hidden" name="pname" id="pnameInput" th:value="${pname}">
+
+        <!-- Sezione 1: Ricerca AI (standalone, prima) -->
+        <div class="search-section">
+            <textarea name="q" class="search-textarea" rows="3"
+                      placeholder="Ciao, sono Bandi-do! 👋 Descrivi al meglio quello che stai cercando: tipo di bando, attrezzature, settore merceologico, regione… Elaborerò la tua descrizione per trovare i risultati più pertinenti."
+                      th:text="${q}"></textarea>
+            <div class="search-footer">
+                <div class="strictness-group">
+                    <span class="strictness-label">Precisione AI:</span>
+                    <label class="strictness-option">
+                        <input type="radio" name="strictness" value="precisa"
+                               th:checked="${strictness == 'precisa'}">
+                        <span>Precisa</span>
+                    </label>
+                    <label class="strictness-option">
+                        <input type="radio" name="strictness" value="normale"
+                               th:checked="${strictness == null or strictness == 'normale'}">
+                        <span>Normale</span>
+                    </label>
+                    <label class="strictness-option">
+                        <input type="radio" name="strictness" value="ampia"
+                               th:checked="${strictness == 'ampia'}">
+                        <span>Ampia</span>
+                    </label>
+                </div>
+                <div class="search-actions-row">
+                    <button type="submit" class="btn btn-primary">Cerca</button>
+                    <a href="/" class="btn btn-secondary">Azzera filtri</a>
+                </div>
+            </div>
+            <div th:if="${queryElaborata}" class="ai-elaboration-hint">
+                AI ha elaborato: &ldquo;<span th:text="${queryElaborata}"></span>&rdquo;
+            </div>
+        </div>
+
+        <!-- Pannello risposta AI -->
+        <div id="aiResponsePanel" class="ai-response-panel" style="display:none;">
+            <div class="ai-response-header">
+                <span class="ai-response-badge">AI</span>
+                <span class="ai-response-title">Bandi-do — Assistente</span>
+                <button type="button" class="ai-response-close" onclick="document.getElementById('aiResponsePanel').style.display='none'" title="Chiudi">&#x2715;</button>
+            </div>
+            <div id="aiResponseContent" class="ai-response-content">
+                <span class="ai-loading-text">Elaborazione risposta…</span>
+            </div>
+        </div>
+
+        <!-- Profili di ricerca rapida -->
+        <div th:if="${!profiliAttivi.isEmpty()}" class="profili-bar">
+            <div class="profili-bar-label">Ricerche rapide:</div>
+            <div class="profili-bar-buttons">
+                <button type="button"
+                        th:each="p : ${profiliAttivi}"
+                        class="btn-profilo"
+                        th:classappend="${pname == p.nome} ? ' btn-profilo-attivo' : ''"
+                        th:attr="data-keywords=${p.keywords}, data-nome=${p.nome}, data-cpv=${p.cpvCodes != null ? p.cpvCodes : ''}"
+                        th:text="${p.nome}"
+                        onclick="selezionaProfilo(this)"></button>
+            </div>
+            <a href="/profili" class="profili-bar-gestisci">Gestisci →</a>
+        </div>
+        <div th:if="${profiliAttivi.isEmpty()}" class="profili-bar profili-bar-empty">
+            <a href="/profili" class="profili-bar-gestisci">+ Aggiungi profili di ricerca rapida</a>
+        </div>
+
+        <!-- Sezione 2: Box filtri raggruppati -->
+        <div class="filter-boxes">
+
+            <!-- Box: Consip -->
+            <div class="filter-box">
+                <div class="filter-box-label filter-box-label-src">
+                    <div>
+                        <span>Consip</span>
+                        <span class="filter-box-subtitle">(alcuni non ancora registrati su ANAC)</span>
+                    </div>
+                    <label class="filter-source-toggle" title="Includi dati Consip">
+                        <input type="checkbox" name="enableConsip" value="true"
+                               th:checked="${enableConsip == null or enableConsip}"
+                               onchange="toggleSourceBox(this, 'boxConsipContent')">
+                    </label>
+                </div>
+                <div class="filter-box-content" id="boxConsipContent">
+                    <div class="filter-group">
+                        <label class="filter-label">Tipo</label>
+                        <div class="toggle-group">
+                            <label class="toggle-option" title="Include sia Gare ASP che Bandi &amp; Gare">
+                                <input type="radio" name="tipoDataset" value=""
+                                       th:checked="${#strings.isEmpty(tipoDatasetSelezionato)}">
+                                <span>Tutti</span>
+                            </label>
+                            <label class="toggle-option">
+                                <input type="radio" name="tipoDataset" value="GARE_ASP"
+                                       th:checked="${tipoDatasetSelezionato == 'GARE_ASP'}">
+                                <span>Gare ASP</span>
+                            </label>
+                            <label class="toggle-option">
+                                <input type="radio" name="tipoDataset" value="BANDI_GARE"
+                                       th:checked="${tipoDatasetSelezionato == 'BANDI_GARE'}">
+                                <span>Bandi &amp; Gare</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label" for="annoSelect">Anno</label>
+                        <select name="anno" id="annoSelect" class="filter-select">
+                            <option value="">Tutti gli anni</option>
+                            <option th:each="a : ${anni}"
+                                    th:value="${a}"
+                                    th:text="${a}"
+                                    th:selected="${annoSelezionato != null and annoSelezionato == a}"></option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box: ANAC -->
+            <div class="filter-box">
+                <div class="filter-box-label filter-box-label-src">
+                    <div>
+                        <span>ANAC CIG</span>
+                        <span class="filter-box-subtitle">(include i contratti Consip registrati su ANAC)</span>
+                    </div>
+                    <label class="filter-source-toggle" title="Includi dati ANAC CIG">
+                        <input type="checkbox" name="enableAnac" value="true"
+                               th:checked="${enableAnac == null or enableAnac}"
+                               onchange="toggleSourceBox(this, 'boxAnacContent')">
+                    </label>
+                </div>
+                <div class="filter-box-content" id="boxAnacContent">
+                    <div class="filter-group">
+                        <div class="toggle-group">
+                            <div class="toggle-option-indicator"
+                                 th:classappend="${enableAnac == null or enableAnac} ? ' toggle-option-indicator-active' : ''">
+                                <span>ANAC</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Stazione appaltante <span class="filter-label-hint">(ente specifico)</span></label>
+                        <div class="filter-multi-add">
+                            <select class="filter-multi-picker" id="stazioneAppaltantePicker" style="display:none">
+                                <option value="">— seleziona —</option>
+                                <option th:each="item : ${stazioniData}"
+                                        th:value="${item.v}"
+                                        th:text="${item.v + ' (' + item.c + ')'}"></option>
+                            </select>
+                            <button type="button" class="btn-multi-sfoglia"
+                                    onclick="apriModaleStazAp()">Seleziona...</button>
+                            <div class="mode-radio-group">
+                                <label><input type="radio" name="stazioneAppaltanteMode" value="inc" checked> Includi</label>
+                                <label><input type="radio" name="stazioneAppaltanteMode" value="exc"> Escludi</label>
+                            </div>
+                        </div>
+                        <div id="stazioneAppaltanteTags" class="filter-multi-tags">
+                            <th:block th:each="v : ${stazioneAppaltanteSelezionata}">
+                                <span class="multi-ftag multi-ftag-inc">
+                                    <span class="multi-ftag-text" th:text="${v}"></span>
+                                    <input type="hidden" name="stazioneAppaltante" th:value="${v}">
+                                    <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
+                                </span>
+                            </th:block>
+                            <th:block th:each="v : ${excludeStazioneAppaltante}">
+                                <span class="multi-ftag multi-ftag-exc">
+                                    <span class="multi-ftag-text" th:text="'≠ ' + ${v}"></span>
+                                    <input type="hidden" name="excludeStazioneAppaltante" th:value="${v}">
+                                    <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
+                                </span>
+                            </th:block>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box: Scadenza -->
+            <div class="filter-box">
+                <div class="filter-box-label">Scadenza</div>
+                <div class="filter-group">
+                    <label class="filter-label">Scade entro</label>
+                    <div class="scade-entro-group">
+                        <label class="scade-option" th:classappend="${scadeEntro == null} ? ' active' : ''">
+                            <input type="radio" name="scadeEntro" value="" th:checked="${scadeEntro == null}"> Tutti
+                        </label>
+                        <label class="scade-option scade-7" th:classappend="${scadeEntro == 7} ? ' active' : ''">
+                            <input type="radio" name="scadeEntro" value="7" th:checked="${scadeEntro == 7}"> 7 gg
+                        </label>
+                        <label class="scade-option scade-14" th:classappend="${scadeEntro == 14} ? ' active' : ''">
+                            <input type="radio" name="scadeEntro" value="14" th:checked="${scadeEntro == 14}"> 14 gg
+                        </label>
+                        <label class="scade-option scade-30" th:classappend="${scadeEntro == 30} ? ' active' : ''">
+                            <input type="radio" name="scadeEntro" value="30" th:checked="${scadeEntro == 30}"> 30 gg
+                        </label>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-toggle-row">
+                        <input type="checkbox" name="soloNonScadute" value="true"
+                               th:checked="${soloNonScadute}">
+                        <span>Nascondi scadute</span>
+                    </label>
+                </div>
+                <div class="filter-dates-row">
+                    <div class="filter-group">
+                        <label class="filter-label">Dal</label>
+                        <input type="date" name="scadenzaDal" class="filter-date"
+                               th:value="${scadenzaDal}">
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Al</label>
+                        <input type="date" name="scadenzaAl" class="filter-date"
+                               th:value="${scadenzaAl}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box: Importo -->
+            <div class="filter-box">
+                <div class="filter-box-label">Importo (€)</div>
+                <div class="filter-group">
+                    <label class="filter-label">Fascia di valore</label>
+                    <div class="importo-range-group">
+                        <input type="number" name="importoDa" class="filter-importo" min="0" step="1000"
+                               placeholder="Min" th:value="${importoDa}">
+                        <span class="importo-sep">—</span>
+                        <input type="number" name="importoA" class="filter-importo" min="0" step="1000"
+                               placeholder="Max" th:value="${importoA}">
+                    </div>
+                    <div class="importo-presets">
+                        <button type="button" class="importo-preset" onclick="setImporto(0,50000)">fino a 50k</button>
+                        <button type="button" class="importo-preset" onclick="setImporto(50000,500000)">50k–500k</button>
+                        <button type="button" class="importo-preset" onclick="setImporto(500000,null)">oltre 500k</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box: Stato gara -->
+            <div class="filter-box">
+                <div class="filter-box-label">Stato gara</div>
+                <div class="filter-group">
+                    <div class="filter-multi-add">
+                        <select class="filter-multi-picker" id="statoPicker" style="display:none">
+                            <option value="">— seleziona —</option>
+                            <option th:each="st : ${statiGara}"
+                                    th:if="${st != null and !#strings.isEmpty(st)}"
+                                    th:value="${st}" th:text="${st}"></option>
+                        </select>
+                        <button type="button" class="btn-multi-sfoglia"
+                                onclick="apriModaleMultiFiltro('statoMode')">Seleziona...</button>
+                        <div class="mode-radio-group">
+                            <label><input type="radio" name="statoMode" value="inc" checked> Includi</label>
+                            <label><input type="radio" name="statoMode" value="exc"> Escludi</label>
+                        </div>
+                    </div>
+                    <div id="statoTags" class="filter-multi-tags">
+                        <th:block th:each="v : ${statoSelezionato}">
+                            <span class="multi-ftag multi-ftag-inc">
+                                <span class="multi-ftag-text" th:text="${v}"></span>
+                                <input type="hidden" name="stato" th:value="${v}">
+                                <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
+                            </span>
+                        </th:block>
+                        <th:block th:each="v : ${excludeStato}">
+                            <span class="multi-ftag multi-ftag-exc">
+                                <span class="multi-ftag-text" th:text="'≠ ' + ${v}"></span>
+                                <input type="hidden" name="excludeStato" th:value="${v}">
+                                <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
+                            </span>
+                        </th:block>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box: Regione -->
+            <div class="filter-box">
+                <div class="filter-box-label">Regione <span class="filter-box-hint">(Gare ASP)</span></div>
+                <div class="filter-group">
+                    <div class="filter-multi-add">
+                        <select class="filter-multi-picker" id="regionePicker" style="display:none">
+                            <option value="">— seleziona —</option>
+                            <option th:each="reg : ${regioni}"
+                                    th:if="${reg != null and !#strings.isEmpty(reg)}"
+                                    th:value="${reg}" th:text="${reg}"></option>
+                        </select>
+                        <button type="button" class="btn-multi-sfoglia"
+                                onclick="apriModaleMultiFiltro('regioneMode')">Seleziona...</button>
+                        <div class="mode-radio-group">
+                            <label><input type="radio" name="regioneMode" value="inc" checked> Includi</label>
+                            <label><input type="radio" name="regioneMode" value="exc"> Escludi</label>
+                        </div>
+                    </div>
+                    <div id="regioneTags" class="filter-multi-tags">
+                        <th:block th:each="v : ${regioneSelezionata}">
+                            <span class="multi-ftag multi-ftag-inc">
+                                <span class="multi-ftag-text" th:text="${v}"></span>
+                                <input type="hidden" name="regione" th:value="${v}">
+                                <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
+                            </span>
+                        </th:block>
+                        <th:block th:each="v : ${excludeRegione}">
+                            <span class="multi-ftag multi-ftag-exc">
+                                <span class="multi-ftag-text" th:text="'≠ ' + ${v}"></span>
+                                <input type="hidden" name="excludeRegione" th:value="${v}">
+                                <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
+                            </span>
+                        </th:block>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box: Tipo Amministrazione -->
+            <div class="filter-box">
+                <div class="filter-box-label">Tipo Amministrazione <span class="filter-label-hint">(categoria ente, dati ANAC)</span></div>
+                <div class="filter-group">
+                    <div class="filter-multi-add">
+                        <select class="filter-multi-picker" id="tipoAmmPicker" style="display:none">
+                            <option value="">— seleziona —</option>
+                            <option th:each="ta : ${tipiAmministrazione}"
+                                    th:if="${ta != null and !#strings.isEmpty(ta)}"
+                                    th:value="${ta}" th:text="${ta}"></option>
+                        </select>
+                        <button type="button" class="btn-multi-sfoglia"
+                                onclick="apriModaleMultiFiltro('tipoAmmMode')">Seleziona...</button>
+                        <div class="mode-radio-group">
+                            <label><input type="radio" name="tipoAmmMode" value="inc" checked> Includi</label>
+                            <label><input type="radio" name="tipoAmmMode" value="exc"> Escludi</label>
+                        </div>
+                    </div>
+                    <div id="tipoAmmTags" class="filter-multi-tags">
+                        <th:block th:each="v : ${tipoAmministrazioneSelezionato}">
+                            <span class="multi-ftag multi-ftag-inc">
+                                <span class="multi-ftag-text" th:text="${v}"></span>
+                                <input type="hidden" name="tipoAmministrazione" th:value="${v}">
+                                <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
+                            </span>
+                        </th:block>
+                        <th:block th:each="v : ${excludeTipoAmministrazione}">
+                            <span class="multi-ftag multi-ftag-exc">
+                                <span class="multi-ftag-text" th:text="'≠ ' + ${v}"></span>
+                                <input type="hidden" name="excludeTipoAmministrazione" th:value="${v}">
+                                <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
+                            </span>
+                        </th:block>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box: Tipo Strumento / Contratto -->
+            <div class="filter-box" id="tipoStrumentoGroup">
+                <div class="filter-box-label">Tipo Strumento <span class="filter-box-hint">(Consip)</span></div>
+                <div class="filter-group">
+                    <div class="filter-multi-add">
+                        <select class="filter-multi-picker" id="tipoStrPicker" style="display:none">
+                            <option value="">— seleziona —</option>
+                            <option th:each="ts : ${tipiStrumento}"
+                                    th:if="${ts != null and !#strings.isEmpty(ts)}"
+                                    th:value="${ts}" th:text="${ts}"></option>
+                        </select>
+                        <button type="button" class="btn-multi-sfoglia"
+                                onclick="apriModaleMultiFiltro('tipoStrMode')">Seleziona...</button>
+                        <div class="mode-radio-group">
+                            <label><input type="radio" name="tipoStrMode" value="inc" checked> Includi</label>
+                            <label><input type="radio" name="tipoStrMode" value="exc"> Escludi</label>
+                        </div>
+                    </div>
+                    <div id="tipoStrTags" class="filter-multi-tags">
+                        <th:block th:each="v : ${tipoStrumentoSelezionato}">
+                            <span class="multi-ftag multi-ftag-inc">
+                                <span class="multi-ftag-text" th:text="${v}"></span>
+                                <input type="hidden" name="tipoStrumento" th:value="${v}">
+                                <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
+                            </span>
+                        </th:block>
+                        <th:block th:each="v : ${excludeTipoStrumento}">
+                            <span class="multi-ftag multi-ftag-exc">
+                                <span class="multi-ftag-text" th:text="'≠ ' + ${v}"></span>
+                                <input type="hidden" name="excludeTipoStrumento" th:value="${v}">
+                                <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
+                            </span>
+                        </th:block>
+                    </div>
+                </div>
+            </div>
+            <div class="filter-box" id="tipologiaContrattoGroup" style="display:none;">
+                <div class="filter-box-label">Tipo Contratto <span class="filter-box-hint">(ANAC)</span></div>
+                <div class="filter-group">
+                    <select name="tipoStrumento" id="tipologiaContrattoSelect" class="filter-select filter-multi-picker" style="width:100%" disabled>
+                        <option value="">Tutti</option>
+                        <option value="FORNITURE" th:selected="${tipoStrumentoSelezionato.contains('FORNITURE')}">Forniture</option>
+                        <option value="SERVIZI" th:selected="${tipoStrumentoSelezionato.contains('SERVIZI')}">Servizi</option>
+                        <option value="LAVORI" th:selected="${tipoStrumentoSelezionato.contains('LAVORI')}">Lavori</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Box: Categoria (larghezza piena, multi-selezione) -->
+            <div class="filter-box filter-box-full">
+                <div class="filter-box-label">Categoria <span class="filter-box-hint">— più selezioni possibili</span></div>
+                <button type="button" class="btn-filter-open" onclick="apriModaleCategoria()">
+                    <span id="catBtnLabel">Seleziona categorie…</span>
+                    <span class="btn-filter-arrow">&#9660;</span>
+                </button>
+                <div id="catTagsContainer" class="cpv-tags" style="margin-top:6px;">
+                    <th:block th:each="cat : ${categorieSelezionate}">
+                        <span class="cpv-tag" th:attr="data-value=${cat}">
+                            <span class="cpv-tag-text" th:text="${cat}"></span>
+                            <button type="button" class="cpv-tag-remove" onclick="removeCatTag(this)">&#215;</button>
+                            <input type="hidden" name="categoria" th:value="${cat}">
+                        </span>
+                    </th:block>
+                </div>
+                <div id="catDeselBtn" style="display:none;margin-top:6px;">
+                    <button type="button" class="btn-desel has-sel" style="font-size:0.78rem;padding:3px 10px;" onclick="deselezionaTutteCategorie()">Deseleziona tutte</button>
+                </div>
+            </div>
+
+            <!-- Box: CPV (larghezza piena, multi-selezione) -->
+            <div class="filter-box filter-box-full">
+                <div class="filter-box-label">Codice CPV <span class="filter-box-hint">— più codici selezionabili</span></div>
+                <div class="cpv-sort-toggle">
+                    <button type="button" class="cpv-sort-btn active" id="sortByCode" onclick="setCpvSort('code')"># Codice</button>
+                    <button type="button" class="cpv-sort-btn" id="sortByAlpha" onclick="setCpvSort('alpha')">A–Z</button>
+                </div>
+                <div class="cpv-autocomplete-wrapper">
+                    <input type="text" id="cpvInput" class="cpv-input"
+                           placeholder="Cerca per codice o parola chiave…" autocomplete="off">
+                    <ul id="cpvDropdown" class="cpv-dropdown" style="display:none;"></ul>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:4px;margin-bottom:2px;">
+                    <button type="button" class="btn-cpv-sfoglia" onclick="apriModaleCpv()">&#128269; Sfoglia tutti i CPV</button>
+                    <div id="cpvDeselBoxBtn" style="display:none;">
+                        <button type="button" class="btn-desel has-sel" style="font-size:0.78rem;padding:3px 10px;" onclick="deselezionaTuttiCpv()">Deseleziona tutte</button>
+                    </div>
+                </div>
+                <div id="cpvTagsContainer" class="cpv-tags">
+                    <th:block th:each="cpv : ${codCpvSelezionato}">
+                        <th:block th:with="desc=${cpvDescMap.get(cpv)}">
+                            <span class="cpv-tag" th:attr="data-code=${cpv}">
+                                <span class="cpv-tag-text"
+                                      th:text="${cpv + (desc != null and !desc.isEmpty() ? ' – ' + #strings.abbreviate(desc, 60) : '')}"></span>
+                                <button type="button" class="cpv-tag-remove" onclick="removeCpvTag(this)">&#215;</button>
+                                <input type="hidden" name="codCpv" th:value="${cpv}">
+                            </span>
+                        </th:block>
+                    </th:block>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Applica filtri</button>
+        </div>
+
+    </form>
+</div>
+
+<main>
+
+    <div class="results-bar">
+        <div class="results-summary">
+        <span class="results-count">
+            <strong th:text="${bandi.totalElements}">0</strong> risultati
+        </span>
+        <span id="profiloBadge"
+              th:class="${!#strings.isEmpty(pq)} ? 'active-filter active-filter-profilo' : 'active-filter active-filter-profilo' + ' ' + 'hidden-badge'"
+              th:style="${#strings.isEmpty(pq)} ? 'display:none' : ''">
+            Profilo: <span id="profiloBadgeName" th:text="${!#strings.isEmpty(pname) ? pname : #strings.abbreviate(pq, 30)}"></span>
+            <button type="button" onclick="deselezionaProfilo()" style="background:none;border:none;cursor:pointer;margin-left:6px;color:inherit;opacity:0.7;font-size:0.9rem;padding:0;" title="Rimuovi profilo">&#215;</button>
+        </span>
+        <span th:if="${!#strings.isEmpty(q)}" class="active-filter">
+            Ricerca: "<span th:text="${q}"></span>"
+        </span>
+        <span th:if="${tipoDatasetSelezionato == 'GARE_ASP'}" class="active-filter badge-asp">Gare ASP</span>
+        <span th:if="${tipoDatasetSelezionato == 'BANDI_GARE'}" class="active-filter badge-bg">Bandi &amp; Gare</span>
+        <span th:if="${annoSelezionato != null}" class="active-filter">Anno: <span th:text="${annoSelezionato}"></span></span>
+        <th:block th:each="cat : ${categorieSelezionate}">
+            <span class="active-filter" th:text="${cat}"></span>
+        </th:block>
+        <th:block th:each="v : ${statoSelezionato}">
+            <span class="active-filter" th:text="${v}"></span>
+        </th:block>
+        <th:block th:each="v : ${regioneSelezionata}">
+            <span class="active-filter" th:text="${v}"></span>
+        </th:block>
+        <th:block th:each="v : ${tipoAmministrazioneSelezionato}">
+            <span class="active-filter" th:text="${v}"></span>
+        </th:block>
+        <th:block th:each="v : ${tipoStrumentoSelezionato}">
+            <span class="active-filter" th:text="${v}"></span>
+        </th:block>
+        <th:block th:each="v : ${excludeStato}">
+            <span class="active-filter active-filter-excl">&#8800; <span th:text="${v}"></span></span>
+        </th:block>
+        <th:block th:each="v : ${excludeRegione}">
+            <span class="active-filter active-filter-excl">&#8800; <span th:text="${v}"></span></span>
+        </th:block>
+        <th:block th:each="v : ${excludeTipoAmministrazione}">
+            <span class="active-filter active-filter-excl">&#8800; <span th:text="${v}"></span></span>
+        </th:block>
+        <th:block th:each="v : ${excludeTipoStrumento}">
+            <span class="active-filter active-filter-excl">&#8800; <span th:text="${v}"></span></span>
+        </th:block>
+        <th:block th:each="cpv : ${codCpvSelezionato}">
+            <span class="active-filter" th:text="'CPV ' + ${cpv}"></span>
+        </th:block>
+        </div><!-- end results-summary -->
+        <div class="view-toggle" th:if="${bandi.totalElements > 0}">
+            <button type="button" id="viewList" class="view-btn active" onclick="setView('list')" title="Vista lista">&#9776; Lista</button>
+            <button type="button" id="viewGrid" class="view-btn" onclick="setView('grid')" title="Vista griglia">&#9707; Griglia</button>
+        </div>
+    </div><!-- end results-bar -->
+
+    <div th:if="${bandi.totalElements == 0}" class="empty-state">
+        <div class="empty-icon">&#128269;</div>
+        <p>Nessun bando trovato.</p>
+        <p th:if="${totaleBandi == 0}">Clicca su "&#8659; Consip" nella barra in alto per scaricare i dati.</p>
+        <p th:unless="${totaleBandi == 0}">Prova a modificare i filtri di ricerca.</p>
+    </div>
+
+    <div class="bandi-list" th:if="${bandi.totalElements > 0}">
+        <article th:each="bando : ${bandi.content}" class="bando-card"
+                 th:classappend="${bando.dataScadenza != null and #temporals.createToday().plusDays(7).compareTo(bando.dataScadenza) >= 0 and bando.dataScadenza.compareTo(#temporals.createToday()) >= 0} ? 'scadenza-urgente' : (${bando.dataScadenza != null and #temporals.createToday().plusDays(14).compareTo(bando.dataScadenza) >= 0 and bando.dataScadenza.compareTo(#temporals.createToday()) >= 0} ? 'scadenza-presto' : '')">
+
+            <div class="bando-header">
+                <div class="bando-badges">
+                    <span th:if="${bando.tipoDataset != null and bando.tipoDataset.name() == 'GARE_ASP'}" class="badge badge-asp">Gara ASP</span>
+                    <span th:if="${bando.tipoDataset != null and bando.tipoDataset.name() == 'BANDI_GARE'}" class="badge badge-bg">Bandi &amp; Gare</span>
+                    <span th:if="${bando.tipoDataset != null and bando.tipoDataset.name() == 'ANAC_CIG'}" class="badge badge-anac">ANAC</span>
+                    <span th:unless="${bando.tipoDataset != null}" class="badge badge-legacy">Consip</span>
+                    <span th:if="${bando.annoRiferimento != null}"
+                          class="badge badge-anno"
+                          th:text="${bando.annoRiferimento}"></span>
+                    <span th:if="${bando.statoGara != null}"
+                          class="badge badge-stato"
+                          th:classappend="${'stato-' + #strings.replace(#strings.toLowerCase(bando.statoGara), ' ', '-')}"
+                          th:text="${bando.statoGara}"></span>
+                    <span th:if="${bando.codCpv != null}"
+                          class="badge badge-cpv"
+                          th:title="${bando.descrizioneCpv}"
+                          th:text="${bando.codCpv}"></span>
+                </div>
+                <span class="bando-data"
+                      th:text="${#temporals.format(bando.dataImportazione, 'dd/MM/yyyy HH:mm')}"></span>
+            </div>
+
+            <h2 class="bando-titolo">
+                <a th:href="@{/bandi/{id}(id=${bando.id})}" target="_blank"
+                   th:text="${bando.titolo}"></a>
+            </h2>
+
+            <p class="bando-descrizione"
+               th:if="${bando.descrizione != null and !#strings.isEmpty(bando.descrizione)}"
+               th:text="${#strings.abbreviate(bando.descrizione, 250)}"></p>
+
+            <div class="bando-meta">
+                <span th:if="${bando.categoriaGara != null}" class="meta-item meta-categoria"
+                      th:text="${bando.categoriaGara}"></span>
+                <span th:if="${bando.regionePa != null}" class="meta-item"
+                      th:text="${bando.regionePa + (bando.provinciaPa != null ? ' - ' + bando.provinciaPa : '')}"></span>
+                <span th:if="${bando.stazioneAppaltante != null}" class="meta-item"
+                      th:text="${bando.stazioneAppaltante}"></span>
+                <span th:if="${bando.importoBase != null}" class="meta-item meta-importo"
+                      th:text="'€ ' + ${#numbers.formatDecimal(bando.importoBase, 1, 'COMMA', 2, 'POINT')}"></span>
+                <span th:if="${bando.dataPubblicazione != null}" class="meta-item meta-data-pubbl"
+                      th:text="'Pubbl.: ' + ${#temporals.format(bando.dataPubblicazione, 'dd/MM/yyyy')}"></span>
+                <span th:if="${bando.dataScadenza != null}" class="meta-item meta-scadenza"
+                      th:classappend="${bando.dataScadenza.compareTo(#temporals.createToday()) >= 0 and #temporals.createToday().plusDays(7).compareTo(bando.dataScadenza) >= 0} ? ' meta-scadenza-urgente' : (${bando.dataScadenza.compareTo(#temporals.createToday()) >= 0 and #temporals.createToday().plusDays(14).compareTo(bando.dataScadenza) >= 0} ? ' meta-scadenza-presto' : '')">
+                    <th:block th:if="${bando.dataScadenza.compareTo(#temporals.createToday()) >= 0 and #temporals.createToday().plusDays(7).compareTo(bando.dataScadenza) >= 0}">&#9888; </th:block>
+                    <th:block th:text="'Scade: ' + ${#temporals.format(bando.dataScadenza, 'dd/MM/yyyy')}"></th:block>
+                </span>
+                <span th:if="${bando.tipoStrumento != null}" class="meta-item"
+                      th:text="${bando.tipoStrumento}"></span>
+                <span th:if="${bando.tipoProcedura != null}" class="meta-item"
+                      th:text="${bando.tipoProcedura}"></span>
+            </div>
+
+        </article>
+    </div>
+
+    <nav class="pagination" th:if="${bandi.totalPages > 1}" aria-label="Paginazione">
+        <button th:if="${!bandi.first}" type="button" class="btn btn-secondary"
+                th:onclick="'goToPage(' + ${bandi.number - 1} + ')'">&#8592; Precedente</button>
+        <span class="page-info">
+            Pagina <strong th:text="${bandi.number + 1}"></strong> di <strong th:text="${bandi.totalPages}"></strong>
+        </span>
+        <button th:if="${!bandi.last}" type="button" class="btn btn-secondary"
+                th:onclick="'goToPage(' + ${bandi.number + 1} + ')'">Successiva &#8594;</button>
+    </nav>
+
+</main>
+
+<!-- CPV Modal -->
+<div id="cpvModal" class="cpv-modal-overlay" style="display:none;">
+    <div class="cpv-modal">
+        <div class="cpv-modal-header">
+            <span class="cpv-modal-title">Tutti i codici CPV <span id="cpvHeaderCount" class="modal-header-sel-count"></span></span>
+            <button type="button" class="cpv-modal-close" onclick="chiudiModaleCpv()">&#215;</button>
+        </div>
+        <div class="cpv-modal-toolbar">
+            <input type="text" id="cpvModalSearch" class="cpv-modal-input"
+                   placeholder="Cerca per codice numerico o parola chiave…"
+                   oninput="renderModalList(this.value)">
+            <div class="cpv-sort-toggle" style="margin-bottom:0;">
+                <button type="button" class="cpv-sort-btn active" id="modalSortCode" onclick="setModalSort('code')"># Codice</button>
+                <button type="button" class="cpv-sort-btn" id="modalSortAlpha" onclick="setModalSort('alpha')">A–Z</button>
+            </div>
+        </div>
+        <ul id="cpvModalList" class="cpv-modal-list"></ul>
+        <div class="cpv-modal-footer">
+            <div class="cpv-modal-footer-left">
+                <span class="cpv-modal-footer-count" id="cpvModalCount"></span>
+                <span class="cpv-modal-selected-preview" id="cpvSelectedPreview"></span>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button type="button" class="btn-desel" id="cpvDeselModalBtn" onclick="deselezionaTuttiCpv()">Deseleziona tutte</button>
+                <button type="button" class="btn-confirm" onclick="chiudiModaleCpv()">Conferma</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Categoria Modal -->
+<div id="catModal" class="cpv-modal-overlay" style="display:none;">
+    <div class="cpv-modal">
+        <div class="cpv-modal-header">
+            <span class="cpv-modal-title">Tutte le categorie <span id="catHeaderCount" class="modal-header-sel-count"></span></span>
+            <button type="button" class="cpv-modal-close" onclick="chiudiModaleCategoria()">&#215;</button>
+        </div>
+        <div class="cpv-modal-toolbar">
+            <input type="text" id="catModalSearch" class="cpv-modal-input"
+                   placeholder="Cerca categoria…"
+                   oninput="renderCatModalList(this.value)">
+        </div>
+        <ul id="catModalList" class="cpv-modal-list"></ul>
+        <div class="cpv-modal-footer">
+            <div class="cpv-modal-footer-left">
+                <span class="cpv-modal-footer-count" id="catModalCount"></span>
+                <span class="cpv-modal-selected-preview" id="catSelectedPreview"></span>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button type="button" class="btn-desel" id="catDeselModalBtn" onclick="deselezionaTutteCategorie()">Deseleziona tutte</button>
+                <button type="button" class="btn-confirm" onclick="chiudiModaleCategoria()">Conferma</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Multi-filtro Modal (Stato / Regione / Tipo Amm / Tipo Strumento) -->
+<div id="multiFiltroModal" class="cpv-modal-overlay" style="display:none;">
+    <div class="cpv-modal" style="width:480px;">
+        <div class="cpv-modal-header">
+            <span class="cpv-modal-title" id="multiFiltroModalTitle">Seleziona</span>
+            <button type="button" class="cpv-modal-close" onclick="chiudiModaleMultiFiltro()">&#215;</button>
+        </div>
+        <div class="cpv-modal-toolbar">
+            <input type="text" id="multiFiltroSearch" class="cpv-modal-input"
+                   placeholder="Cerca..." oninput="filtraModaleMultiFiltro()">
+        </div>
+        <div id="multiFiltroList" class="cpv-modal-list"></div>
+        <div class="cpv-modal-footer">
+            <div class="cpv-modal-footer-left"></div>
+            <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button type="button" class="btn-desel" onclick="deselezionaTutteMultiFiltro()">Deseleziona tutte</button>
+                <button type="button" class="btn-confirm" id="multiFiltroConfermaBtn" onclick="confermaModaleMultiFiltro()">Conferma</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stazione Appaltante Modal (tab: per regione / per tipo) -->
+<div id="modaleStazAp" class="cpv-modal-overlay" style="display:none;">
+    <div class="cpv-modal staz-ap-modal">
+        <div class="cpv-modal-header">
+            <span class="cpv-modal-title">Stazione appaltante <span id="stazApHeaderSel" class="modal-header-sel-count"></span></span>
+            <button type="button" class="cpv-modal-close" onclick="chiudiModaleStazAp()">&#215;</button>
+        </div>
+        <div class="staz-ap-tabs">
+            <button type="button" class="staz-ap-tab staz-ap-tab-active" id="tabStazRegione" onclick="switchStazTab('r')">Per regione</button>
+            <button type="button" class="staz-ap-tab" id="tabStazTipo" onclick="switchStazTab('t')">Per tipo</button>
+        </div>
+        <div class="cpv-modal-toolbar">
+            <input type="text" id="stazApSearch" class="cpv-modal-input" placeholder="Cerca stazione…" oninput="filtraModaleStazAp()">
+        </div>
+        <div id="stazApAccordion" class="staz-ap-accordion"></div>
+        <div class="cpv-modal-footer">
+            <div class="cpv-modal-footer-left">
+                <span class="cpv-modal-footer-count" id="stazApCount"></span>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button type="button" class="btn-desel" onclick="deselezionaTutteStazAp()">Deseleziona tutte</button>
+                <button type="button" class="btn-confirm" id="stazApConfermaBtn" onclick="confermaModaleStazAp()">Conferma</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" class="loading-overlay" style="display:none;">
+    <div class="loading-box">
+        <div class="loading-spinner"></div>
+        <p class="loading-title" id="loadingTitle">Importazione in corso…</p>
+        <p class="loading-sub" id="loadingSub">Download in corso…</p>
+    </div>
+</div>
+
+<form method="post" action="/import" id="importForm" style="display:none;"></form>
+<form method="post" action="/import-anac" id="importAnacForm" style="display:none;"></form>
+
+<script th:inline="javascript">
+const cpvData = /*[[${cpvList}]]*/ [];
+const categorieData = /*[[${categorie}]]*/ [];
+const stazioniData = /*[[${stazioniData}]]*/ [];
+const cpvDescMapJs = {};
+cpvData.forEach(function(row) { if (row[0]) cpvDescMapJs[String(row[0])] = row[1] || ''; });
+</script>
+<script>
+// ======= Vista lista / griglia =======
+function setView(mode) {
+    var list = document.querySelector('.bandi-list');
+    var btnList = document.getElementById('viewList');
+    var btnGrid = document.getElementById('viewGrid');
+    if (!list) return;
+    list.classList.toggle('grid-view', mode === 'grid');
+    if (btnList) btnList.classList.toggle('active', mode === 'list');
+    if (btnGrid) btnGrid.classList.toggle('active', mode === 'grid');
+    localStorage.setItem('bandiView', mode);
+}
+(function() {
+    var saved = localStorage.getItem('bandiView');
+    if (saved === 'grid') setView('grid');
+})();
+
+// ======= AI Response Panel =======
+(function() {
+    var params = new URLSearchParams(window.location.search);
+    var q = params.get('q');
+    if (!q || !q.trim()) return;
+
+    var filtri = [];
+    if (params.get('tipoDataset') || params.get('anno')) filtri.push('Sorgente');
+    if (params.get('scadenzaDal') || params.get('scadenzaAl') || params.get('scadeEntro')) filtri.push('Scadenza');
+    if (params.get('importoDa') || params.get('importoA')) filtri.push('Importo');
+    if (params.getAll('categoria').filter(Boolean).length > 0) filtri.push('Categoria');
+    if (params.get('stato') || params.get('regione') || params.get('tipoAmministrazione') || params.get('tipoStrumento')) filtri.push('Criteri');
+    if (params.getAll('codCpv').filter(Boolean).length > 0) filtri.push('Codice CPV');
+
+    var panel = document.getElementById('aiResponsePanel');
+    var content = document.getElementById('aiResponseContent');
+    panel.style.display = '';
+
+    var totalEl = document.querySelector('.results-count strong');
+    var total = totalEl ? parseInt(totalEl.textContent.replace(/\D/g, '')) || 0 : 0;
+
+    var url = '/ai-summary?q=' + encodeURIComponent(q) + '&totalResults=' + total;
+    filtri.forEach(function(f) { url += '&filtriAttivi=' + encodeURIComponent(f); });
+
+    fetch(url)
+        .then(function(r) { return r.text(); })
+        .then(function(text) {
+            if (!text || !text.trim()) { panel.style.display = 'none'; return; }
+            content.innerHTML = text.split('\n').map(function(line) {
+                return line.trim() ? '<p>' + line.trim() + '</p>' : '';
+            }).join('');
+        })
+        .catch(function() { panel.style.display = 'none'; });
+})();
+
+// ======= Profili di ricerca rapida =======
+var profileCpvCodes = [];
+
+function selezionaProfilo(btn) {
+    if (btn.classList.contains('btn-profilo-attivo')) {
+        deselezionaProfilo();
+        return;
+    }
+    var keywords = btn.dataset.keywords || '';
+    var nome = btn.dataset.nome || '';
+    var cpvRaw = btn.dataset.cpv || '';
+    document.getElementById('pqInput').value = keywords;
+    document.getElementById('pnameInput').value = nome;
+    document.querySelectorAll('.btn-profilo').forEach(function(b) { b.classList.remove('btn-profilo-attivo'); });
+    btn.classList.add('btn-profilo-attivo');
+    var badge = document.getElementById('profiloBadge');
+    var badgeName = document.getElementById('profiloBadgeName');
+    if (badge) badge.style.display = '';
+    if (badgeName) badgeName.textContent = nome || keywords.substring(0, 30);
+
+    // Rimuovi CPV del profilo precedente, poi aggiungi quelli del nuovo
+    profileCpvCodes.forEach(function(code) {
+        var tag = Array.from(cpvTagsContainer.querySelectorAll('.cpv-tag')).find(function(t) { return t.dataset.code === code; });
+        if (tag) { selectedCpvs.delete(code); tag.remove(); }
+    });
+    profileCpvCodes = [];
+    if (cpvRaw.trim()) {
+        cpvRaw.split(',').map(function(c) { return c.trim(); }).filter(Boolean).forEach(function(code) {
+            if (!selectedCpvs.has(code)) {
+                addCpvTag(code, cpvDescMapJs[code] || '');
+                profileCpvCodes.push(code);
+            }
+        });
+        if (profileCpvCodes.length > 0) updateCpvDeselBtn();
+    }
+}
+
+function deselezionaProfilo() {
+    document.getElementById('pqInput').value = '';
+    document.getElementById('pnameInput').value = '';
+    document.querySelectorAll('.btn-profilo').forEach(function(b) { b.classList.remove('btn-profilo-attivo'); });
+    var badge = document.getElementById('profiloBadge');
+    if (badge) badge.style.display = 'none';
+
+    // Rimuovi i CPV aggiunti dal profilo
+    profileCpvCodes.forEach(function(code) {
+        var tag = Array.from(cpvTagsContainer.querySelectorAll('.cpv-tag')).find(function(t) { return t.dataset.code === code; });
+        if (tag) { selectedCpvs.delete(code); tag.remove(); }
+    });
+    if (profileCpvCodes.length > 0) updateCpvDeselBtn();
+    profileCpvCodes = [];
+}
+
+// ======= Import =======
+function avviaImport(formId, titolo, messaggio) {
+    document.getElementById('loadingTitle').textContent = titolo;
+    document.getElementById('loadingSub').textContent = messaggio;
+    document.getElementById('importBtn').disabled = true;
+    document.getElementById('importAnacBtn').disabled = true;
+    document.getElementById('loadingOverlay').style.display = 'flex';
+    document.getElementById(formId).submit();
+}
+
+function avviaImportAnac() {
+    const mesi = document.getElementById('mesiAnacSelect').value;
+    const form = document.getElementById('importAnacForm');
+    let inp = form.querySelector('input[name="mesiIndietro"]');
+    if (!inp) { inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'mesiIndietro'; form.appendChild(inp); }
+    inp.value = mesi;
+    const mesiLabel = mesi === '1' ? '1 mese' : mesi + ' mesi';
+    document.getElementById('loadingTitle').textContent = 'Importazione ANAC in corso…';
+    document.getElementById('loadingSub').textContent = 'Download ultimi ' + mesiLabel + ' da dati.anticorruzione.it — può richiedere diversi minuti';
+    document.getElementById('importBtn').disabled = true;
+    document.getElementById('importAnacBtn').disabled = true;
+    document.getElementById('loadingOverlay').style.display = 'flex';
+    form.submit();
+}
+
+// ======= Tipo dataset toggle =======
+function aggiornaFiltriDataset() {
+    const sel = document.querySelector('input[name="tipoDataset"]:checked');
+    const isAnac = sel && sel.value === 'ANAC_CIG';
+    document.getElementById('tipoStrumentoGroup').style.display = isAnac ? 'none' : '';
+    document.getElementById('tipologiaContrattoGroup').style.display = isAnac ? '' : 'none';
+    document.getElementById('tipologiaContrattoSelect').disabled = !isAnac;
+}
+document.querySelectorAll('input[name="tipoDataset"]').forEach(function(r) {
+    r.addEventListener('change', aggiornaFiltriDataset);
+});
+aggiornaFiltriDataset();
+
+// ======= Multi-filtro: config e radio sync =======
+var FILTRI_CONFIG = {
+    statoMode:                { pickerId: 'statoPicker',              incField: 'stato',                    excField: 'excludeStato',                    tagsId: 'statoTags',                titolo: 'Stato gara' },
+    regioneMode:              { pickerId: 'regionePicker',            incField: 'regione',                  excField: 'excludeRegione',                  tagsId: 'regioneTags',              titolo: 'Regione' },
+    tipoAmmMode:              { pickerId: 'tipoAmmPicker',            incField: 'tipoAmministrazione',      excField: 'excludeTipoAmministrazione',      tagsId: 'tipoAmmTags',              titolo: 'Tipo Amministrazione' },
+    tipoStrMode:              { pickerId: 'tipoStrPicker',            incField: 'tipoStrumento',            excField: 'excludeTipoStrumento',            tagsId: 'tipoStrTags',              titolo: 'Tipo Strumento' },
+    stazioneAppaltanteMode:   { pickerId: 'stazioneAppaltantePicker', incField: 'stazioneAppaltante',       excField: 'excludeStazioneAppaltante',       tagsId: 'stazioneAppaltanteTags',   titolo: 'Stazione appaltante' }
+};
+
+// ======= Modale multi-filtro =======
+var _multiFiltroAttivo = null;
+
+function apriModaleMultiFiltro(modeName) {
+    _multiFiltroAttivo = modeName;
+    var cfg = FILTRI_CONFIG[modeName];
+    if (!cfg) return;
+
+    var checked = document.querySelector('input[name="' + modeName + '"]:checked');
+    var isExc = checked && checked.value === 'exc';
+
+    document.getElementById('multiFiltroModalTitle').textContent = cfg.titolo + ' — ' + (isExc ? 'Escludi' : 'Includi');
+    var btn = document.getElementById('multiFiltroConfermaBtn');
+    btn.style.background = isExc ? '#dc2626' : '';
+    btn.style.borderColor = isExc ? '#dc2626' : '';
+
+    document.getElementById('multiFiltroSearch').value = '';
+
+    var tagsContainer = document.getElementById(cfg.tagsId);
+    var selectedValues = new Set();
+    tagsContainer.querySelectorAll('input[type="hidden"]').forEach(function(inp) {
+        selectedValues.add(inp.value);
+    });
+
+    var picker = document.getElementById(cfg.pickerId);
+    var list = document.getElementById('multiFiltroList');
+    list.innerHTML = '';
+    picker.querySelectorAll('option').forEach(function(opt) {
+        if (!opt.value) return;
+        var lbl = document.createElement('label');
+        lbl.className = 'multi-filtro-check-item';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = opt.value;
+        cb.checked = selectedValues.has(opt.value);
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(' ' + opt.text));
+        list.appendChild(lbl);
+    });
+
+    document.getElementById('multiFiltroModal').style.display = 'flex';
+    setTimeout(function() { document.getElementById('multiFiltroSearch').focus(); }, 50);
+}
+
+function chiudiModaleMultiFiltro() {
+    document.getElementById('multiFiltroModal').style.display = 'none';
+    _multiFiltroAttivo = null;
+}
+
+function filtraModaleMultiFiltro() {
+    var q = document.getElementById('multiFiltroSearch').value.toLowerCase();
+    document.querySelectorAll('#multiFiltroList .multi-filtro-check-item').forEach(function(item) {
+        item.style.display = item.textContent.trim().toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+
+function deselezionaTutteMultiFiltro() {
+    document.querySelectorAll('#multiFiltroList input[type="checkbox"]').forEach(function(cb) {
+        cb.checked = false;
+    });
+}
+
+function confermaModaleMultiFiltro() {
+    if (!_multiFiltroAttivo) return;
+    var cfg = FILTRI_CONFIG[_multiFiltroAttivo];
+    var checked = document.querySelector('input[name="' + _multiFiltroAttivo + '"]:checked');
+    var isExc = checked && checked.value === 'exc';
+    var fieldName = isExc ? cfg.excField : cfg.incField;
+
+    var values = [];
+    document.querySelectorAll('#multiFiltroList input[type="checkbox"]:checked').forEach(function(cb) {
+        values.push(cb.value);
+    });
+
+    var container = document.getElementById(cfg.tagsId);
+    container.innerHTML = '';
+    values.forEach(function(val) {
+        var span = document.createElement('span');
+        span.className = 'multi-ftag ' + (isExc ? 'multi-ftag-exc' : 'multi-ftag-inc');
+        var textSpan = document.createElement('span');
+        textSpan.className = 'multi-ftag-text';
+        textSpan.textContent = isExc ? '≠ ' + val : val;
+        var hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = fieldName;
+        hidden.value = val;
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'multi-ftag-remove';
+        removeBtn.innerHTML = '&times;';
+        (function(s, pId, iF, eF, tId) {
+            removeBtn.addEventListener('click', function() {
+                s.remove();
+                aggiornaOpzioniPicker(pId, iF, eF, tId);
+            });
+        })(span, cfg.pickerId, cfg.incField, cfg.excField, cfg.tagsId);
+        span.appendChild(textSpan);
+        span.appendChild(hidden);
+        span.appendChild(removeBtn);
+        container.appendChild(span);
+    });
+
+    chiudiModaleMultiFiltro();
+}
+
+document.getElementById('multiFiltroModal').addEventListener('click', function(e) {
+    if (e.target === this) chiudiModaleMultiFiltro();
+});
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && _multiFiltroAttivo) chiudiModaleMultiFiltro();
+    if (e.key === 'Escape' && document.getElementById('modaleStazAp').style.display !== 'none') chiudiModaleStazAp();
+});
+
+// ======= Modal Stazione Appaltante (accordion + tab) =======
+var _stazApTab = 'r';
+var _stazApChecked = new Set();
+var _stazApMode = 'inc';
+
+function apriModaleStazAp() {
+    var checked = document.querySelector('input[name="stazioneAppaltanteMode"]:checked');
+    _stazApMode = (checked && checked.value === 'exc') ? 'exc' : 'inc';
+
+    _stazApChecked.clear();
+    var fieldName = _stazApMode === 'exc' ? 'excludeStazioneAppaltante' : 'stazioneAppaltante';
+    document.getElementById('stazioneAppaltanteTags')
+        .querySelectorAll('input[name="' + fieldName + '"]')
+        .forEach(function(inp) { _stazApChecked.add(inp.value); });
+
+    var btn = document.getElementById('stazApConfermaBtn');
+    btn.style.background = _stazApMode === 'exc' ? '#dc2626' : '';
+    btn.style.borderColor = _stazApMode === 'exc' ? '#dc2626' : '';
+
+    document.getElementById('stazApSearch').value = '';
+    _renderStazAp();
+    document.getElementById('modaleStazAp').style.display = 'flex';
+    setTimeout(function() { document.getElementById('stazApSearch').focus(); }, 50);
+}
+
+function chiudiModaleStazAp() {
+    document.getElementById('modaleStazAp').style.display = 'none';
+}
+
+function switchStazTab(tab) {
+    _stazApTab = tab;
+    document.getElementById('tabStazRegione').classList.toggle('staz-ap-tab-active', tab === 'r');
+    document.getElementById('tabStazTipo').classList.toggle('staz-ap-tab-active', tab === 't');
+    document.getElementById('stazApSearch').value = '';
+    _renderStazAp();
+}
+
+function _renderStazAp() {
+    var accordion = document.getElementById('stazApAccordion');
+    accordion.innerHTML = '';
+
+    var groups = {};
+    stazioniData.forEach(function(item) {
+        var key = (_stazApTab === 'r' ? item.r : item.t) || 'Non classificato';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(item);
+    });
+
+    var specialFirst = ['Non classificato'];
+    var specialEnd   = ['Nazionale', 'Non specificata', 'Altro'];
+    var keys = Object.keys(groups).sort(function(a, b) {
+        var aF = specialFirst.indexOf(a), bF = specialFirst.indexOf(b);
+        if (aF >= 0 && bF >= 0) return aF - bF;
+        if (aF >= 0) return -1;
+        if (bF >= 0) return 1;
+        var aE = specialEnd.indexOf(a), bE = specialEnd.indexOf(b);
+        if (aE >= 0 && bE >= 0) return aE - bE;
+        if (aE >= 0) return 1;
+        if (bE >= 0) return -1;
+        return a.localeCompare(b, 'it');
+    });
+
+    keys.forEach(function(groupKey) {
+        var items = groups[groupKey];
+        var checkedInGroup = items.filter(function(i) { return _stazApChecked.has(i.v); }).length;
+        var initiallyOpen = checkedInGroup > 0;
+
+        var section = document.createElement('div');
+        section.className = 'staz-section';
+
+        var header = document.createElement('div');
+        header.className = 'staz-section-header';
+
+        // Checkbox "seleziona tutto" per la sezione
+        var selectAllCb = document.createElement('input');
+        selectAllCb.type = 'checkbox';
+        selectAllCb.className = 'staz-section-select-all';
+        selectAllCb.checked = checkedInGroup === items.length && items.length > 0;
+        selectAllCb.indeterminate = checkedInGroup > 0 && checkedInGroup < items.length;
+        selectAllCb.addEventListener('click', function(e) { e.stopPropagation(); });
+        selectAllCb.addEventListener('change', function(e) {
+            e.stopPropagation();
+            items.forEach(function(i) {
+                if (selectAllCb.checked) _stazApChecked.add(i.v);
+                else _stazApChecked.delete(i.v);
+            });
+            body.querySelectorAll('input[type=checkbox]').forEach(function(c) {
+                c.checked = _stazApChecked.has(c.value);
+            });
+            _syncGroupHeader(selectAllCb, countSpan, items);
+            _aggiornaContStazAp();
+        });
+
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'staz-section-name';
+        nameSpan.textContent = groupKey;
+
+        var countSpan = document.createElement('span');
+        countSpan.className = 'staz-section-count';
+        countSpan.innerHTML = '(' + items.length + (checkedInGroup > 0 ? ' &mdash; <strong>' + checkedInGroup + ' sel.</strong>' : '') + ')';
+
+        var toggleSpan = document.createElement('span');
+        toggleSpan.className = 'staz-section-toggle';
+        toggleSpan.textContent = initiallyOpen ? '▾' : '▸';
+
+        header.appendChild(selectAllCb);
+        header.appendChild(nameSpan);
+        header.appendChild(countSpan);
+        header.appendChild(toggleSpan);
+
+        var body = document.createElement('div');
+        body.className = 'staz-section-body';
+        body.style.display = initiallyOpen ? '' : 'none';
+
+        header.addEventListener('click', function(e) {
+            if (e.target === selectAllCb) return;
+            var isOpen = body.style.display !== 'none';
+            body.style.display = isOpen ? 'none' : '';
+            toggleSpan.textContent = isOpen ? '▸' : '▾';
+        });
+
+        items.forEach(function(item) {
+            var lbl = document.createElement('label');
+            lbl.className = 'multi-filtro-check-item staz-check-item';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = item.v;
+            cb.checked = _stazApChecked.has(item.v);
+            cb.addEventListener('change', function() {
+                if (cb.checked) _stazApChecked.add(item.v);
+                else _stazApChecked.delete(item.v);
+                _syncGroupHeader(selectAllCb, countSpan, items);
+                _aggiornaContStazAp();
+            });
+            var nameNode = document.createTextNode(' ' + item.v);
+            var cntSpan = document.createElement('span');
+            cntSpan.className = 'staz-item-count';
+            cntSpan.textContent = ' (' + item.c + ')';
+            lbl.appendChild(cb);
+            lbl.appendChild(nameNode);
+            lbl.appendChild(cntSpan);
+            body.appendChild(lbl);
+        });
+
+        section.appendChild(header);
+        section.appendChild(body);
+        accordion.appendChild(section);
+    });
+
+    _aggiornaContStazAp();
+}
+
+function _syncGroupHeader(selectAllCb, countSpan, items) {
+    var checkedCount = items.filter(function(i) { return _stazApChecked.has(i.v); }).length;
+    selectAllCb.checked = checkedCount === items.length && items.length > 0;
+    selectAllCb.indeterminate = checkedCount > 0 && checkedCount < items.length;
+    countSpan.innerHTML = '(' + items.length + (checkedCount > 0 ? ' &mdash; <strong>' + checkedCount + ' sel.</strong>' : '') + ')';
+}
+
+function filtraModaleStazAp() {
+    var q = document.getElementById('stazApSearch').value.toLowerCase().trim();
+    document.querySelectorAll('#stazApAccordion .staz-section').forEach(function(section) {
+        var body = section.querySelector('.staz-section-body');
+        var toggle = section.querySelector('.staz-section-toggle');
+        var anyVisible = false;
+        body.querySelectorAll('.staz-check-item').forEach(function(item) {
+            var matches = !q || item.textContent.toLowerCase().includes(q);
+            item.style.display = matches ? '' : 'none';
+            if (matches) anyVisible = true;
+        });
+        section.style.display = anyVisible ? '' : 'none';
+        if (q && anyVisible) { body.style.display = ''; toggle.textContent = '▾'; }
+    });
+}
+
+function deselezionaTutteStazAp() {
+    _stazApChecked.clear();
+    document.querySelectorAll('#stazApAccordion input[type="checkbox"]').forEach(function(cb) {
+        cb.checked = false;
+        cb.indeterminate = false;
+    });
+    document.querySelectorAll('#stazApAccordion .staz-section').forEach(function(section) {
+        var countSpan = section.querySelector('.staz-section-count');
+        if (countSpan) {
+            var itemCount = section.querySelectorAll('.staz-check-item').length;
+            countSpan.textContent = '(' + itemCount + ')';
+        }
+    });
+    _aggiornaContStazAp();
+}
+
+function confermaModaleStazAp() {
+    var isExc = _stazApMode === 'exc';
+    var fieldName = isExc ? 'excludeStazioneAppaltante' : 'stazioneAppaltante';
+    var container = document.getElementById('stazioneAppaltanteTags');
+    container.innerHTML = '';
+    _stazApChecked.forEach(function(val) {
+        var span = document.createElement('span');
+        span.className = 'multi-ftag ' + (isExc ? 'multi-ftag-exc' : 'multi-ftag-inc');
+        var textSpan = document.createElement('span');
+        textSpan.className = 'multi-ftag-text';
+        textSpan.textContent = isExc ? '≠ ' + val : val;
+        var hidden = document.createElement('input');
+        hidden.type = 'hidden'; hidden.name = fieldName; hidden.value = val;
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button'; removeBtn.className = 'multi-ftag-remove'; removeBtn.innerHTML = '&times;';
+        removeBtn.addEventListener('click', function() {
+            span.remove();
+            aggiornaOpzioniPicker('stazioneAppaltantePicker', 'stazioneAppaltante', 'excludeStazioneAppaltante', 'stazioneAppaltanteTags');
+        });
+        span.appendChild(textSpan); span.appendChild(hidden); span.appendChild(removeBtn);
+        container.appendChild(span);
+    });
+    aggiornaOpzioniPicker('stazioneAppaltantePicker', 'stazioneAppaltante', 'excludeStazioneAppaltante', 'stazioneAppaltanteTags');
+    chiudiModaleStazAp();
+}
+
+function _aggiornaContStazAp() {
+    var n = _stazApChecked.size;
+    document.getElementById('stazApCount').textContent = n > 0 ? n + ' selezionate' : '';
+    document.getElementById('stazApHeaderSel').textContent = n > 0 ? '(' + n + ' sel.)' : '';
+}
+
+document.getElementById('modaleStazAp').addEventListener('click', function(e) {
+    if (e.target === this) chiudiModaleStazAp();
+});
+
+// ======= Toggle sorgente (Consip / ANAC) =======
+function toggleSourceBox(checkbox, contentId) {
+    var content = document.getElementById(contentId);
+    content.classList.toggle('filter-box-disabled', !checkbox.checked);
+    // Aggiorna indicatore visivo ANAC
+    var indicator = content.querySelector('.toggle-option-indicator');
+    if (indicator) indicator.classList.toggle('toggle-option-indicator-active', checkbox.checked);
+}
+
+(function() {
+    ['enableConsip', 'enableAnac'].forEach(function(name) {
+        var cb = document.querySelector('input[name="' + name + '"]');
+        if (cb && !cb.checked) {
+            var contentId = name === 'enableConsip' ? 'boxConsipContent' : 'boxAnacContent';
+            document.getElementById(contentId).classList.add('filter-box-disabled');
+        }
+    });
+
+    // Intercept form submit (buttons + goToPage) to inject false for unchecked source checkboxes
+    var form = document.getElementById('filterForm');
+    function injectSourceValues() {
+        ['enableConsip', 'enableAnac'].forEach(function(name) {
+            form.querySelectorAll('input[data-src-inject="' + name + '"]').forEach(function(e) { e.remove(); });
+            var cb = form.querySelector('input[name="' + name + '"]');
+            if (cb && !cb.checked) {
+                var h = document.createElement('input');
+                h.type = 'hidden'; h.name = name; h.value = 'false';
+                h.setAttribute('data-src-inject', name);
+                form.appendChild(h);
+            }
+        });
+    }
+    form.addEventListener('submit', injectSourceValues);
+    var nativeSubmit = HTMLFormElement.prototype.submit;
+    form.submit = function() { injectSourceValues(); nativeSubmit.call(this); };
+})();
+
+function aggiornaBottoneAdd(radioGroupName) {
+    var cfg = FILTRI_CONFIG[radioGroupName];
+    if (!cfg) return;
+    var checked = document.querySelector('input[name="' + radioGroupName + '"]:checked');
+    var isExc = checked && checked.value === 'exc';
+
+    // Aggiorna bottone +/-
+    var anyRadio = document.querySelector('input[name="' + radioGroupName + '"]');
+    var addContainer = anyRadio ? anyRadio.closest('.filter-multi-add') : null;
+    var btn = addContainer ? addContainer.querySelector('.btn-multi-add') : null;
+    if (btn) {
+        btn.textContent = isExc ? '−' : '+';
+        btn.classList.toggle('exc', isExc);
+    }
+
+    // Flippa tutti i tag esistenti
+    var tagsContainer = document.getElementById(cfg.tagsId);
+    if (tagsContainer) {
+        tagsContainer.querySelectorAll('.multi-ftag').forEach(function(tag) {
+            var hidden = tag.querySelector('input[type="hidden"]');
+            var textSpan = tag.querySelector('.multi-ftag-text');
+            if (!hidden || !textSpan) return;
+            var val = hidden.value;
+            tag.classList.toggle('multi-ftag-inc', !isExc);
+            tag.classList.toggle('multi-ftag-exc', isExc);
+            hidden.name = isExc ? cfg.excField : cfg.incField;
+            textSpan.textContent = isExc ? '≠ ' + val : val;
+        });
+    }
+
+    aggiornaOpzioniPicker(cfg.pickerId, cfg.incField, cfg.excField, cfg.tagsId);
+}
+
+// Listener cambio radio
+Object.keys(FILTRI_CONFIG).forEach(function(name) {
+    document.querySelectorAll('input[name="' + name + '"]').forEach(function(r) {
+        r.addEventListener('change', function() { aggiornaBottoneAdd(name); });
+    });
+});
+
+// Init: allinea radio allo stato dei tag già presenti (da Thymeleaf)
+Object.keys(FILTRI_CONFIG).forEach(function(name) {
+    var cfg = FILTRI_CONFIG[name];
+    var tagsContainer = document.getElementById(cfg.tagsId);
+    if (!tagsContainer) return;
+    var hasExc = tagsContainer.querySelector('input[name="' + cfg.excField + '"]');
+    if (hasExc) {
+        var excRadio = document.querySelector('input[name="' + name + '"][value="exc"]');
+        if (excRadio) excRadio.checked = true;
+    }
+    aggiornaBottoneAdd(name);
+    aggiornaOpzioniPicker(cfg.pickerId, cfg.incField, cfg.excField, cfg.tagsId);
+});
+
+// ======= Importo presets =======
+function setImporto(da, a) {
+    document.querySelector('input[name="importoDa"]').value = da !== null ? da : '';
+    document.querySelector('input[name="importoA"]').value = a !== null ? a : '';
+}
+
+// ======= Scade entro pills =======
+function toIsoDate(d) {
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var g = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + m + '-' + g;
+}
+
+document.querySelectorAll('.scade-option').forEach(function(label) {
+    label.addEventListener('click', function() {
+        document.querySelectorAll('.scade-option').forEach(function(l) { l.classList.remove('active'); });
+        label.classList.add('active');
+
+        var radio = label.querySelector('input[type="radio"]');
+        var giorni = radio ? parseInt(radio.value) : NaN;
+        var dalInput = document.querySelector('input[name="scadenzaDal"]');
+        var alInput = document.querySelector('input[name="scadenzaAl"]');
+
+        if (isNaN(giorni) || giorni <= 0) {
+            dalInput.value = '';
+            alInput.value = '';
+        } else {
+            var oggi = new Date();
+            var fine = new Date();
+            fine.setDate(fine.getDate() + giorni);
+            dalInput.value = toIsoDate(oggi);
+            alInput.value = toIsoDate(fine);
+        }
+    });
+});
+
+// ======= Pagination =======
+function goToPage(n) {
+    sessionStorage.setItem('scrollToResults', '1');
+    document.getElementById('pageInput').value = n;
+    document.getElementById('filterForm').submit();
+}
+(function() {
+    if (sessionStorage.getItem('scrollToResults') === '1') {
+        sessionStorage.removeItem('scrollToResults');
+        var main = document.querySelector('main');
+        if (main) main.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+})();
+
+// ======= CPV Autocomplete (multi-select) =======
+var cpvInput = document.getElementById('cpvInput');
+var cpvDropdown = document.getElementById('cpvDropdown');
+var cpvTagsContainer = document.getElementById('cpvTagsContainer');
+
+var selectedCpvs = new Set(
+    Array.from(cpvTagsContainer.querySelectorAll('.cpv-tag')).map(function(t) { return t.dataset.code; })
+);
+
+var cpvSortMode = 'code';
+
+function setCpvSort(mode) {
+    cpvSortMode = mode;
+    document.getElementById('sortByCode').classList.toggle('active', mode === 'code');
+    document.getElementById('sortByAlpha').classList.toggle('active', mode === 'alpha');
+    if (cpvInput.value) buildDropdown(cpvInput.value);
+}
+
+function buildDropdown(query) {
+    if (!query || query.trim().length === 0) {
+        cpvDropdown.style.display = 'none';
+        return;
+    }
+    var q = query.trim().toLowerCase();
+    var filtered = cpvData.filter(function(row) {
+        var code = String(row[0] || '').toLowerCase();
+        var desc = String(row[1] || '').toLowerCase();
+        return (code.includes(q) || desc.includes(q)) && !selectedCpvs.has(String(row[0]));
+    });
+
+    filtered.sort(function(a, b) {
+        if (cpvSortMode === 'alpha') {
+            var da = String(a[1] || ''), db = String(b[1] || '');
+            if (da && db) return da.localeCompare(db, 'it', { sensitivity: 'base' });
+            if (da) return 1;
+            if (db) return -1;
+            return String(a[0] || '').localeCompare(String(b[0] || ''));
+        }
+        return (Number(b[2]) || 0) - (Number(a[2]) || 0);
+    });
+
+    var matches = filtered.slice(0, 12);
+
+    if (matches.length === 0) {
+        cpvDropdown.style.display = 'none';
+        return;
+    }
+
+    cpvDropdown.innerHTML = '';
+    matches.forEach(function(row) {
+        var li = document.createElement('li');
+        li.className = 'cpv-dropdown-item';
+        li.dataset.code = String(row[0]);
+        li.dataset.desc = row[1] || '';
+
+        var codeSpan = document.createElement('span');
+        codeSpan.className = 'cpv-di-code';
+        codeSpan.textContent = row[0];
+        li.appendChild(codeSpan);
+
+        if (row[1]) {
+            li.appendChild(document.createTextNode(row[1]));
+        }
+
+        var countSpan = document.createElement('span');
+        countSpan.className = 'cpv-di-count';
+        countSpan.textContent = '(' + row[2] + ')';
+        li.appendChild(countSpan);
+
+        li.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            addCpvTag(String(row[0]), row[1] || '');
+        });
+        cpvDropdown.appendChild(li);
+    });
+    cpvDropdown.style.display = 'block';
+}
+
+function updateCpvSelectedPreview() {
+    var preview = document.getElementById('cpvSelectedPreview');
+    if (!preview) return;
+    if (selectedCpvs.size === 0) {
+        preview.textContent = '';
+    } else {
+        preview.textContent = Array.from(selectedCpvs).join(' · ');
+    }
+}
+
+function updateCpvDeselBtn() {
+    var modalBtn = document.getElementById('cpvDeselModalBtn');
+    var boxBtn = document.getElementById('cpvDeselBoxBtn');
+    var hasSel = selectedCpvs.size > 0;
+    if (modalBtn) modalBtn.classList.toggle('has-sel', hasSel);
+    if (boxBtn) boxBtn.style.display = hasSel ? '' : 'none';
+    updateCpvSelectedPreview();
+    var hdr = document.getElementById('cpvHeaderCount');
+    if (hdr) hdr.textContent = selectedCpvs.size > 0 ? '· ' + selectedCpvs.size + ' selezionati' : '';
+}
+updateCpvDeselBtn();
+
+function deselezionaTuttiCpv() {
+    if (selectedCpvs.size === 0) return;
+    selectedCpvs.clear();
+    Array.from(cpvTagsContainer.querySelectorAll('.cpv-tag')).forEach(function(t) { t.remove(); });
+    updateCpvDeselBtn();
+    if (document.getElementById('cpvModal').style.display !== 'none') {
+        renderModalList(document.getElementById('cpvModalSearch').value);
+    }
+}
+
+function addCpvTag(code, desc) {
+    if (selectedCpvs.has(code)) return;
+    selectedCpvs.add(code);
+
+    var span = document.createElement('span');
+    span.className = 'cpv-tag';
+    span.dataset.code = code;
+
+    var labelText = desc
+        ? code + ' – ' + (desc.length > 60 ? desc.substring(0, 60) + '…' : desc)
+        : code;
+
+    var textSpan = document.createElement('span');
+    textSpan.className = 'cpv-tag-text';
+    textSpan.textContent = labelText;
+
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'cpv-tag-remove';
+    removeBtn.innerHTML = '&times;';
+    removeBtn.addEventListener('click', function() {
+        selectedCpvs.delete(code);
+        span.remove();
+        updateCpvDeselBtn();
+    });
+
+    var hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.name = 'codCpv';
+    hiddenInput.value = code;
+
+    span.appendChild(textSpan);
+    span.appendChild(removeBtn);
+    span.appendChild(hiddenInput);
+    cpvTagsContainer.appendChild(span);
+    updateCpvDeselBtn();
+
+    cpvInput.value = '';
+    cpvDropdown.style.display = 'none';
+    cpvInput.focus();
+}
+
+function removeCpvTag(btn) {
+    var span = btn.closest('.cpv-tag');
+    if (span) {
+        selectedCpvs.delete(span.dataset.code);
+        span.remove();
+        updateCpvDeselBtn();
+    }
+}
+
+cpvInput.addEventListener('input', function() { buildDropdown(cpvInput.value); });
+cpvInput.addEventListener('focus', function() { if (cpvInput.value) buildDropdown(cpvInput.value); });
+cpvInput.addEventListener('blur', function() { setTimeout(function() { cpvDropdown.style.display = 'none'; }, 160); });
+cpvInput.addEventListener('dblclick', function() { apriModaleCpv(); });
+
+// ======= CPV Modal =======
+var cpvModalSortMode = 'code';
+
+function apriModaleCpv() {
+    cpvDropdown.style.display = 'none';
+    cpvModalSortMode = 'code';
+    document.getElementById('modalSortCode').classList.add('active');
+    document.getElementById('modalSortAlpha').classList.remove('active');
+    document.getElementById('cpvModal').style.display = 'flex';
+    var search = document.getElementById('cpvModalSearch');
+    search.value = '';
+    renderModalList('');
+    setTimeout(function() { search.focus(); }, 50);
+}
+
+function chiudiModaleCpv() {
+    document.getElementById('cpvModal').style.display = 'none';
+}
+
+function setModalSort(mode) {
+    cpvModalSortMode = mode;
+    document.getElementById('modalSortCode').classList.toggle('active', mode === 'code');
+    document.getElementById('modalSortAlpha').classList.toggle('active', mode === 'alpha');
+    renderModalList(document.getElementById('cpvModalSearch').value);
+}
+
+function renderModalList(query) {
+    var q = (query || '').trim().toLowerCase();
+    var filtered = cpvData.filter(function(row) {
+        if (!q) return true;
+        return String(row[0] || '').toLowerCase().includes(q) || String(row[1] || '').toLowerCase().includes(q);
+    });
+
+    filtered.sort(function(a, b) {
+        if (cpvModalSortMode === 'alpha') {
+            var da = String(a[1] || ''), db = String(b[1] || '');
+            if (da && db) return da.localeCompare(db, 'it', { sensitivity: 'base' });
+            if (da) return 1;
+            if (db) return -1;
+            return String(a[0] || '').localeCompare(String(b[0] || ''));
+        }
+        return (Number(b[2]) || 0) - (Number(a[2]) || 0);
+    });
+
+    var list = document.getElementById('cpvModalList');
+    list.innerHTML = '';
+    document.getElementById('cpvModalCount').textContent = filtered.length + ' codici';
+
+    filtered.forEach(function(row) {
+        var code = String(row[0]);
+        var desc = row[1] || '';
+        var count = row[2];
+        var isSel = selectedCpvs.has(code);
+
+        var li = document.createElement('li');
+        li.className = 'cpv-modal-item' + (isSel ? ' cpv-modal-item-selected' : '');
+        li.dataset.code = code;
+
+        var check = document.createElement('span');
+        check.className = 'cpv-modal-check';
+        if (isSel) check.textContent = '✓';
+
+        var codeSpan = document.createElement('span');
+        codeSpan.className = 'cpv-modal-code';
+        codeSpan.innerHTML = highlightText(code, q);
+
+        var descSpan = document.createElement('span');
+        descSpan.className = 'cpv-modal-desc';
+        descSpan.innerHTML = highlightText(desc, q);
+        descSpan.title = desc;
+
+        var countSpan = document.createElement('span');
+        countSpan.className = 'cpv-modal-item-count';
+        countSpan.textContent = count;
+
+        li.appendChild(check);
+        li.appendChild(codeSpan);
+        li.appendChild(descSpan);
+        li.appendChild(countSpan);
+
+        li.addEventListener('click', function() {
+            if (selectedCpvs.has(code)) {
+                selectedCpvs.delete(code);
+                var tag = Array.from(cpvTagsContainer.querySelectorAll('.cpv-tag')).find(function(t) { return t.dataset.code === code; });
+                if (tag) tag.remove();
+                li.classList.remove('cpv-modal-item-selected');
+                check.textContent = '';
+            } else {
+                addCpvTag(code, desc);
+                li.classList.add('cpv-modal-item-selected');
+                check.textContent = '✓';
+            }
+        });
+
+        list.appendChild(li);
+    });
+}
+
+// Chiudi modale con clic sul backdrop o Escape
+document.getElementById('cpvModal').addEventListener('click', function(e) {
+    if (e.target === this) chiudiModaleCpv();
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('cpvModal').style.display !== 'none') {
+        chiudiModaleCpv();
+    }
+});
+
+// ======= Categoria Tags =======
+var catTagsContainer = document.getElementById('catTagsContainer');
+var selectedCategorie = new Set(
+    Array.from(catTagsContainer.querySelectorAll('.cpv-tag')).map(function(t) { return t.dataset.value; })
+);
+
+function addCatTag(val) {
+    if (selectedCategorie.has(val)) return;
+    selectedCategorie.add(val);
+
+    var span = document.createElement('span');
+    span.className = 'cpv-tag';
+    span.dataset.value = val;
+
+    var textSpan = document.createElement('span');
+    textSpan.className = 'cpv-tag-text';
+    textSpan.textContent = val;
+
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'cpv-tag-remove';
+    removeBtn.innerHTML = '&times;';
+    removeBtn.addEventListener('click', function() {
+        selectedCategorie.delete(val);
+        span.remove();
+        updateCatBtnLabel();
+    });
+
+    var hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.name = 'categoria';
+    hiddenInput.value = val;
+
+    span.appendChild(textSpan);
+    span.appendChild(removeBtn);
+    span.appendChild(hiddenInput);
+    catTagsContainer.appendChild(span);
+    updateCatBtnLabel();
+}
+
+function removeCatTag(btn) {
+    var span = btn.closest('.cpv-tag');
+    if (span) {
+        selectedCategorie.delete(span.dataset.value);
+        span.remove();
+        updateCatBtnLabel();
+    }
+}
+
+function updateCatSelectedPreview() {
+    var preview = document.getElementById('catSelectedPreview');
+    if (!preview) return;
+    if (selectedCategorie.size === 0) {
+        preview.textContent = '';
+    } else {
+        preview.textContent = Array.from(selectedCategorie).join(' · ');
+    }
+}
+
+function updateCatBtnLabel() {
+    var lbl = document.getElementById('catBtnLabel');
+    var deselBoxBtn = document.getElementById('catDeselBtn');
+    var deselModalBtn = document.getElementById('catDeselModalBtn');
+    var hasSel = selectedCategorie.size > 0;
+    if (!hasSel) {
+        lbl.textContent = 'Seleziona categorie…';
+        if (deselBoxBtn) deselBoxBtn.style.display = 'none';
+    } else {
+        lbl.textContent = selectedCategorie.size + (selectedCategorie.size === 1 ? ' categoria selezionata' : ' categorie selezionate');
+        if (deselBoxBtn) deselBoxBtn.style.display = '';
+    }
+    if (deselModalBtn) deselModalBtn.classList.toggle('has-sel', hasSel);
+    updateCatSelectedPreview();
+    var hdr = document.getElementById('catHeaderCount');
+    if (hdr) hdr.textContent = selectedCategorie.size > 0 ? '· ' + selectedCategorie.size + ' selezionate' : '';
+}
+updateCatBtnLabel();
+
+function deselezionaTutteCategorie() {
+    selectedCategorie.clear();
+    Array.from(catTagsContainer.querySelectorAll('.cpv-tag')).forEach(function(t) { t.remove(); });
+    updateCatBtnLabel();
+    if (document.getElementById('catModal').style.display !== 'none') {
+        renderCatModalList(document.getElementById('catModalSearch').value);
+    }
+}
+
+// ======= Categoria Modal =======
+function apriModaleCategoria() {
+    document.getElementById('catModal').style.display = 'flex';
+    var search = document.getElementById('catModalSearch');
+    search.value = '';
+    renderCatModalList('');
+    setTimeout(function() { search.focus(); }, 50);
+}
+
+function chiudiModaleCategoria() {
+    document.getElementById('catModal').style.display = 'none';
+}
+
+function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function highlightText(text, query) {
+    var safe = escapeHtml(text);
+    if (!query) return safe;
+    var re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    return safe.replace(re, function(m) { return '<mark class="search-highlight">' + m + '</mark>'; });
+}
+
+function renderCatModalList(query) {
+    var q = (query || '').trim().toLowerCase();
+    var filtered = categorieData.filter(function(cat) {
+        if (!q) return true;
+        return String(cat || '').toLowerCase().includes(q);
+    });
+    filtered.sort(function(a, b) {
+        return String(a || '').localeCompare(String(b || ''), 'it', { sensitivity: 'base' });
+    });
+
+    var list = document.getElementById('catModalList');
+    list.innerHTML = '';
+    document.getElementById('catModalCount').textContent = filtered.length + ' categorie';
+
+    filtered.forEach(function(cat) {
+        if (!cat) return;
+        var isSel = selectedCategorie.has(cat);
+
+        var li = document.createElement('li');
+        li.className = 'cpv-modal-item' + (isSel ? ' cpv-modal-item-selected' : '');
+        li.dataset.value = cat;
+
+        var check = document.createElement('span');
+        check.className = 'cpv-modal-check';
+        if (isSel) check.textContent = '✓';
+
+        var descSpan = document.createElement('span');
+        descSpan.className = 'cpv-modal-desc';
+        descSpan.style.flex = '1';
+        descSpan.innerHTML = highlightText(cat, q);
+        descSpan.title = cat;
+
+        li.appendChild(check);
+        li.appendChild(descSpan);
+
+        li.addEventListener('click', function() {
+            if (selectedCategorie.has(cat)) {
+                selectedCategorie.delete(cat);
+                var tag = Array.from(catTagsContainer.querySelectorAll('.cpv-tag')).find(function(t) { return t.dataset.value === cat; });
+                if (tag) tag.remove();
+                li.classList.remove('cpv-modal-item-selected');
+                check.textContent = '';
+            } else {
+                addCatTag(cat);
+                li.classList.add('cpv-modal-item-selected');
+                check.textContent = '✓';
+            }
+            updateCatBtnLabel();
+        });
+
+        list.appendChild(li);
+    });
+}
+
+document.getElementById('catModal').addEventListener('click', function(e) {
+    if (e.target === this) chiudiModaleCategoria();
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('catModal').style.display !== 'none') {
+        chiudiModaleCategoria();
+    }
+});
+
+cpvInput.addEventListener('keydown', function(e) {
+    var items = Array.from(cpvDropdown.querySelectorAll('.cpv-dropdown-item'));
+    var activeIdx = items.findIndex(function(i) { return i.classList.contains('kbd-active'); });
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (cpvDropdown.style.display === 'none') buildDropdown(cpvInput.value);
+        items.forEach(function(i) { i.classList.remove('kbd-active'); });
+        var next = activeIdx < items.length - 1 ? activeIdx + 1 : 0;
+        if (items[next]) { items[next].classList.add('kbd-active'); items[next].scrollIntoView({ block: 'nearest' }); }
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        items.forEach(function(i) { i.classList.remove('kbd-active'); });
+        var prev = activeIdx > 0 ? activeIdx - 1 : items.length - 1;
+        if (items[prev]) { items[prev].classList.add('kbd-active'); items[prev].scrollIntoView({ block: 'nearest' }); }
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        var active = cpvDropdown.querySelector('.kbd-active');
+        if (active) addCpvTag(active.dataset.code, active.dataset.desc);
+    } else if (e.key === 'Escape') {
+        cpvDropdown.style.display = 'none';
+    }
+});
+
+// ============================================================
+// Multi-selezione include/escludi
+// ============================================================
+function aggiornaOpzioniPicker(pickerId, includeField, excludeField, tagsId) {
+    var picker = document.getElementById(pickerId);
+    var container = document.getElementById(tagsId);
+    if (!picker || !container) return;
+    var incValues = new Set();
+    var excValues = new Set();
+    container.querySelectorAll('input[type="hidden"]').forEach(function(inp) {
+        if (inp.name === includeField) incValues.add(inp.value);
+        else if (inp.name === excludeField) excValues.add(inp.value);
+    });
+    picker.querySelectorAll('option').forEach(function(opt) {
+        if (!opt.value) { opt.style.background = ''; opt.style.color = ''; return; }
+        if (incValues.has(opt.value)) {
+            opt.style.background = '#bbf7d0';
+            opt.style.color = '#14532d';
+        } else if (excValues.has(opt.value)) {
+            opt.style.background = '#fecaca';
+            opt.style.color = '#7f1d1d';
+        } else {
+            opt.style.background = '';
+            opt.style.color = '';
+        }
+    });
+}
+
+function aggiungiConModo(pickerId, includeField, excludeField, tagsId, modeName) {
+    var picker = document.getElementById(pickerId);
+    var val = picker ? picker.value : '';
+    if (!val) return;
+
+    var modeEl = document.querySelector('input[name="' + modeName + '"]:checked');
+    var isExclude = modeEl && modeEl.value === 'exc';
+    var fieldName = isExclude ? excludeField : includeField;
+
+    var container = document.getElementById(tagsId);
+    var exists = container.querySelectorAll('input[name="' + fieldName + '"]');
+    for (var i = 0; i < exists.length; i++) {
+        if (exists[i].value === val) return;
+    }
+
+    var span = document.createElement('span');
+    span.className = 'multi-ftag ' + (isExclude ? 'multi-ftag-exc' : 'multi-ftag-inc');
+
+    var textSpan = document.createElement('span');
+    textSpan.className = 'multi-ftag-text';
+    textSpan.textContent = isExclude ? '≠ ' + val : val;
+
+    var hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = fieldName;
+    hidden.value = val;
+
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'multi-ftag-remove';
+    removeBtn.innerHTML = '&times;';
+    removeBtn.addEventListener('click', function() {
+        span.remove();
+        aggiornaOpzioniPicker(pickerId, includeField, excludeField, tagsId);
+    });
+
+    span.appendChild(textSpan);
+    span.appendChild(hidden);
+    span.appendChild(removeBtn);
+    container.appendChild(span);
+
+    picker.value = '';
+    aggiornaOpzioniPicker(pickerId, includeField, excludeField, tagsId);
+}
+
+
+</script>
+
+</body>
+</html>

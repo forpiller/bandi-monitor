@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="it">
+<body>
+<header th:fragment="header">
+    <div class="header-inner">
+        <h1><a href="/" style="color:inherit;text-decoration:none;">Bandi Monitor</a></h1>
+        <span class="header-count" th:if="${totaleBandi != null}">
+            <span class="count-number" th:text="${#numbers.formatInteger(totaleBandi, 1, 'COMMA')}">0</span>
+            <span class="count-label">bandi totali</span>
+        </span>
+        <div class="header-actions" th:if="${totaleBandi != null}">
+            <button type="button" class="btn-header-import" id="importBtn"
+                    onclick="avviaImport('importForm', 'Importazione Consip in corso…', 'Download bandi da dati.consip.it — 1-2 minuti')">
+                <span class="arrow">&#11015;</span> Consip
+            </button>
+            <span class="header-divider"></span>
+            <div class="header-anac-group">
+                <select id="mesiAnacSelect" class="header-select" title="Mesi da scaricare per ANAC">
+                    <option value="1">1 mese</option>
+                    <option value="3" selected>3 mesi</option>
+                    <option value="6">6 mesi</option>
+                    <option value="12">12 mesi</option>
+                </select>
+                <button type="button" class="btn-header-import" id="importAnacBtn"
+                        onclick="avviaImportAnac()">
+                    <span class="arrow">&#11015;</span> ANAC
+                </button>
+            </div>
+        </div>
+    </div>
+</header>
+</body>
+</html>

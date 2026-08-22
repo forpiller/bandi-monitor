@@ -1,0 +1,29 @@
+use_default_settings: true
+
+server:
+  secret_key: "bandi-monitor-searxng-secret-2024"
+  limiter: false
+  image_proxy: false
+  method: "GET"
+
+search:
+  safe_search: 0
+  default_lang: "it-IT"
+  formats:
+    - html
+    - json
+
+ui:
+  static_use_hash: false
+  default_theme: simple
+
+engines:
+  - name: google
+    disabled: false
+    weight: 2
+  - name: bing
+    disabled: false
+    weight: 1
+  - name: duckduckgo
+    disabled: false
+    weight: 1

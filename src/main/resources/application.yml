@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: bandi-monitor
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/bandi_monitor}
+    username: ${DB_USERNAME:bandi_monitor}
+    password: ${DB_PASSWORD:bandi_monitor}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+  ai:
+    ollama:
+      base-url: ${OLLAMA_URL:http://localhost:11434}
+      embedding:
+        model: nomic-embed-text
+        options:
+          num-ctx: 2048
+      chat:
+        options:
+          model: ${OLLAMA_CHAT_MODEL:hermes3}
+          temperature: 0.1
+          num-ctx: 4096
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        # deve corrispondere alle dimensioni di nomic-embed-text
+        dimensions: 768
+
+bandi:
+  searxng:
+    url: ${SEARXNG_URL:http://localhost:8888}
+  import:
+    ckan-url: ${CKAN_URL:https://dati.consip.it/api/3/action}
+    anni: ${IMPORT_ANNI:2025,2026}
+    cron: "0 0 1 1 * *"
+    anac:
+      anni: ${ANAC_ANNI:2025}
+      mesi: ${ANAC_MESI:1,2,3,4,5,6,7,8,9,10,11,12}
+
+server:
+  port: 8080

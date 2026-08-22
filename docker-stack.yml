@@ -1,0 +1,48 @@
+services:
+  app:
+    image: bandi-monitor:latest
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://db:5432/bandi_monitor
+      DB_USERNAME: bandi_monitor
+      DB_PASSWORD: bandi_monitor
+      OLLAMA_URL: http://ollama:11434
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+    depends_on:
+      - db
+      - ollama
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: bandi_monitor
+      POSTGRES_USER: bandi_monitor
+      POSTGRES_PASSWORD: bandi_monitor
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+volumes:
+  pgdata:
+  ollama_data:
