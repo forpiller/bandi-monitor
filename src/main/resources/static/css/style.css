@@ -1231,9 +1231,9 @@ main {
     display: inline-flex;
     align-items: center;
     padding: 5px 14px;
-    background: #ede9fe;
-    color: #5b21b6;
-    border: 1px solid #c4b5fd;
+    background: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
     border-radius: 20px;
     font-size: 0.8rem;
     font-weight: 700;
@@ -1244,7 +1244,7 @@ main {
 }
 
 .btn-profilo:hover {
-    background: #ddd6fe;
+    background: #e5e7eb;
     transform: translateY(-1px);
 }
 
@@ -1252,6 +1252,13 @@ main {
     background: #7c3aed;
     color: #fff;
     border-color: #7c3aed;
+}
+
+.profili-bar-none {
+    font-size: 0.78rem;
+    color: #9ca3af;
+    font-style: italic;
+    white-space: nowrap;
 }
 
 .btn-cpv-sfoglia {
