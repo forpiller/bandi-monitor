@@ -38,6 +38,7 @@ public class BandiSearchRequest {
     private List<String> excludeStazioneAppaltante;
     private Boolean enableConsip;
     private Boolean enableAnac;
+    private Boolean enableSintel;
     private String strictness = "normale";
     private int page = 0;
     private boolean noAi = false;

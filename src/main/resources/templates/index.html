@@ -40,6 +40,19 @@
         </span>
         <span th:unless="${fonteAnac != null and fonteAnac.ultimaSincronizzazione != null}" class="source-info-empty">mai aggiornato</span>
     </div>
+    <div class="source-info-item">
+        <span class="source-info-label badge badge-legacy">Sintel Lombardia</span>
+        <span th:if="${fonteSintel != null and fonteSintel.ultimaSincronizzazione != null}">
+            aggiornato il <strong th:text="${#temporals.format(fonteSintel.ultimaSincronizzazione, 'dd/MM/yyyy HH:mm')}"></strong>
+            &mdash;
+            <span th:if="${minAnnoSintel != null and maxAnnoSintel != null and minAnnoSintel == maxAnnoSintel}"
+                  th:text="'anno ' + ${minAnnoSintel}"></span>
+            <span th:if="${minAnnoSintel != null and maxAnnoSintel != null and minAnnoSintel != maxAnnoSintel}"
+                  th:text="'anni ' + ${minAnnoSintel} + '–' + ${maxAnnoSintel}"></span>
+            &mdash; <span th:text="${countSintel}"></span> record
+        </span>
+        <span th:unless="${fonteSintel != null and fonteSintel.ultimaSincronizzazione != null}" class="source-info-empty">mai aggiornato</span>
+    </div>
 </div>
 
 <div class="filter-panel">
@@ -218,6 +231,31 @@
                                     <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
                                 </span>
                             </th:block>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box: Sintel Lombardia -->
+            <div class="filter-box">
+                <div class="filter-box-label filter-box-label-src">
+                    <div>
+                        <span>Sintel Lombardia</span>
+                        <span class="filter-box-subtitle">(gare Regione Lombardia)</span>
+                    </div>
+                    <label class="filter-source-toggle" title="Includi dati Sintel Lombardia">
+                        <input type="checkbox" name="enableSintel" value="true"
+                               th:checked="${enableSintel == null or enableSintel}"
+                               onchange="toggleSourceBox(this, 'boxSintelContent')">
+                    </label>
+                </div>
+                <div class="filter-box-content" id="boxSintelContent">
+                    <div class="filter-group">
+                        <div class="toggle-group">
+                            <div class="toggle-option-indicator"
+                                 th:classappend="${enableSintel == null or enableSintel} ? ' toggle-option-indicator-active' : ''">
+                                <span>Sintel</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -756,6 +794,8 @@
 
 <form method="post" action="/import" id="importForm" style="display:none;"></form>
 <form method="post" action="/import-anac" id="importAnacForm" style="display:none;"></form>
+<form method="post" action="/import-sintel" id="importSintelForm" style="display:none;"></form>
+<form method="post" action="/import-ipa" id="importIpaForm" style="display:none;"></form>
 
 <script th:inline="javascript">
 const cpvData = /*[[${cpvList}]]*/ [];

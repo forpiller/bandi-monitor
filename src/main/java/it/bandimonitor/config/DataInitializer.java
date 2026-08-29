@@ -33,5 +33,14 @@ public class DataInitializer implements ApplicationRunner {
             fonteRepository.save(anac);
             log.info("Fonte 'ANAC' inizializzata");
         }
+        if (fonteRepository.findByNome("Sintel Lombardia").isEmpty()) {
+            FonteMonitorata sintel = new FonteMonitorata();
+            sintel.setNome("Sintel Lombardia");
+            sintel.setUrlApi("https://www.dati.lombardia.it/resource/8txy-zjw2.json");
+            sintel.setUrlSito("https://www.sintel.regione.lombardia.it");
+            sintel.setAttiva(true);
+            fonteRepository.save(sintel);
+            log.info("Fonte 'Sintel Lombardia' inizializzata");
+        }
     }
 }

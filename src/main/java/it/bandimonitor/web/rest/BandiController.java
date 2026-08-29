@@ -11,7 +11,9 @@ import it.bandimonitor.service.AnacImportService;
 import it.bandimonitor.service.BandoService;
 import it.bandimonitor.service.ConsipImportService;
 import it.bandimonitor.service.FonteService;
+import it.bandimonitor.service.IpaImportService;
 import it.bandimonitor.service.ProfiloService;
+import it.bandimonitor.service.SintelImportService;
 import it.bandimonitor.service.WebSearchService;
 import it.bandimonitor.web.vm.BandiSearchRequest;
 
@@ -41,6 +43,8 @@ public class BandiController {
     private final FonteService fonteService;
     private final ConsipImportService importService;
     private final AnacImportService anacImportService;
+    private final SintelImportService sintelImportService;
+    private final IpaImportService ipaImportService;
     private final AiSearchService aiSearchService;
     private final WebSearchService webSearchService;
     private final ProfiloService profiloService;
@@ -92,6 +96,7 @@ public class BandiController {
         model.addAttribute("excludeStazioneAppaltante", filterList(req.getExcludeStazioneAppaltante()));
         model.addAttribute("enableConsip", req.getEnableConsip());
         model.addAttribute("enableAnac", req.getEnableAnac());
+        model.addAttribute("enableSintel", req.getEnableSintel());
 
         List<Object[]> cpvList = bandoService.findCpvConConteggio();
         model.addAttribute("cpvList", cpvList);
@@ -105,14 +110,19 @@ public class BandiController {
 
         List<TipoDataset> tipiConsip = List.of(TipoDataset.GARE_ASP, TipoDataset.BANDI_GARE);
         List<TipoDataset> tipiAnac   = List.of(TipoDataset.ANAC_CIG);
+        List<TipoDataset> tipiSintel = List.of(TipoDataset.SINTEL_LOMBARDIA);
         model.addAttribute("fonteConsip", fonteService.findFonteInfo("Consip").orElse(null));
         model.addAttribute("fonteAnac",   fonteService.findFonteInfo("ANAC").orElse(null));
+        model.addAttribute("fonteSintel", fonteService.findFonteInfo("Sintel Lombardia").orElse(null));
         model.addAttribute("countConsip", bandoService.countByTipoDatasetIn(tipiConsip));
         model.addAttribute("countAnac",   bandoService.countByTipoDatasetIn(tipiAnac));
+        model.addAttribute("countSintel", bandoService.countByTipoDatasetIn(tipiSintel));
         model.addAttribute("minAnnoConsip", bandoService.findMinAnnoByTipiDataset(tipiConsip));
         model.addAttribute("maxAnnoConsip", bandoService.findMaxAnnoByTipiDataset(tipiConsip));
         model.addAttribute("minAnnoAnac",   bandoService.findMinAnnoByTipiDataset(tipiAnac));
         model.addAttribute("maxAnnoAnac",   bandoService.findMaxAnnoByTipiDataset(tipiAnac));
+        model.addAttribute("minAnnoSintel", bandoService.findMinAnnoByTipiDataset(tipiSintel));
+        model.addAttribute("maxAnnoSintel", bandoService.findMaxAnnoByTipiDataset(tipiSintel));
 
         model.addAttribute("categorie",           bandoService.findDistinctCategorie());
         model.addAttribute("statiGara",           bandoService.findDistinctStatiGara());
@@ -165,6 +175,23 @@ public class BandiController {
             m.put("c", e.getValue());
             m.put("r", classe.regione());
             m.put("t", classe.tipo() != null ? classe.tipo() : "Altro");
+            stazioniData.add(m);
+        }
+
+        // Infine le stazioni Sintel non già presenti in ANAC o Consip
+        for (Object[] row : bandoService.findStazioniAppaltantiSintelConDettagli()) {
+            String nome = (String) row[0];
+            if (nome == null || stazioniAnacMap.containsKey(nome) || stazioniConsipExtra.containsKey(nome)) continue;
+            String regioneSintel = row[1] != null ? (String) row[1] : null;
+            String tipoSintel = row[2] != null ? (String) row[2] : null;
+            long count = ((Number) row[3]).longValue();
+            nomiStazioni.add(nome);
+            StazioneClasse classe = stazioneClassificatoreService.classifica(nome, regioneSintel);
+            Map<String, Object> m = new HashMap<>();
+            m.put("v", nome);
+            m.put("c", count);
+            m.put("r", classe.regione());
+            m.put("t", classe.tipo() != null ? classe.tipo() : (tipoSintel != null ? toTitleCase(tipoSintel) : "Altro"));
             stazioniData.add(m);
         }
 
@@ -244,6 +271,34 @@ public class BandiController {
             String msg = e.getMessage();
             if (msg != null && msg.length() > 200) msg = msg.substring(0, 200) + "…";
             redirectAttributes.addFlashAttribute("errorMessage", "Errore ANAC: " + msg);
+        }
+        return "redirect:/";
+    }
+
+    @PostMapping("/import-sintel")
+    public String triggerImportSintel(RedirectAttributes redirectAttributes) {
+        try {
+            sintelImportService.importa();
+            redirectAttributes.addFlashAttribute("successMessage", "Importazione Sintel Lombardia completata con successo");
+        } catch (Exception e) {
+            log.error("Errore importazione Sintel", e);
+            String msg = e.getMessage();
+            if (msg != null && msg.length() > 200) msg = msg.substring(0, 200) + "…";
+            redirectAttributes.addFlashAttribute("errorMessage", "Errore Sintel: " + msg);
+        }
+        return "redirect:/";
+    }
+
+    @PostMapping("/import-ipa")
+    public String triggerImportIpa(RedirectAttributes redirectAttributes) {
+        try {
+            ipaImportService.importa();
+            redirectAttributes.addFlashAttribute("successMessage", "Importazione anagrafica IPA completata con successo");
+        } catch (Exception e) {
+            log.error("Errore importazione IPA", e);
+            String msg = e.getMessage();
+            if (msg != null && msg.length() > 200) msg = msg.substring(0, 200) + "…";
+            redirectAttributes.addFlashAttribute("errorMessage", "Errore IPA: " + msg);
         }
         return "redirect:/";
     }
