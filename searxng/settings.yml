@@ -1,7 +1,10 @@
 use_default_settings: true
 
 server:
-  secret_key: "bandi-monitor-searxng-secret-2024"
+  # Valore di default documentato da SearXNG stesso — SearXNG gira solo in locale/Docker,
+  # quindi non è una credenziale reale. Da sostituire con `openssl rand -hex 32` se mai
+  # esposto su una rete non fidata.
+  secret_key: "ultrasecretkey"
   limiter: false
   image_proxy: false
   method: "GET"
