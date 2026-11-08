@@ -47,7 +47,7 @@ public class BandoService {
                 .and(BandoSpec.hasStazioneAppaltante(filterList(req.getStazioneAppaltante())))
                 .and(BandoSpec.excludeStazioneAppaltante(filterList(req.getExcludeStazioneAppaltante())))
                 .and(BandoSpec.soloNonScadute(req.isSoloNonScadute()))
-                .and(BandoSpec.includeSorgenti(req.getEnableConsip(), req.getEnableAnac()));
+                .and(BandoSpec.includeSorgenti(req.getEnableConsip(), req.getEnableAnac(), req.getEnableSintel()));
 
         PageRequest pageable = PageRequest.of(req.getPage(), 20, Sort.by("dataImportazione").descending());
         return bandoRepository.findAll(spec, pageable).map(this::toDto);
@@ -84,6 +84,7 @@ public class BandoService {
     public List<Object[]> findCpvConConteggio()           { return bandoRepository.findCpvConConteggio(); }
     public List<Object[]> findStazioniAppaltantiAnacConDettagli()      { return bandoRepository.findStazioniAppaltantiAnacConDettagli(); }
     public List<Object[]> findStazioniAppaltantiConsipConConteggio()   { return bandoRepository.findStazioniAppaltantiConsipConConteggio(); }
+    public List<Object[]> findStazioniAppaltantiSintelConDettagli()    { return bandoRepository.findStazioniAppaltantiSintelConDettagli(); }
 
     public void deleteByTipoDatasetIn(List<TipoDataset> tipi) {
         List<String> tipiStr = tipi.stream().map(TipoDataset::name).toList();

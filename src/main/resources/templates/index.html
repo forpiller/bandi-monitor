@@ -40,6 +40,19 @@
         </span>
         <span th:unless="${fonteAnac != null and fonteAnac.ultimaSincronizzazione != null}" class="source-info-empty">mai aggiornato</span>
     </div>
+    <div class="source-info-item">
+        <span class="source-info-label badge badge-legacy">Sintel Lombardia</span>
+        <span th:if="${fonteSintel != null and fonteSintel.ultimaSincronizzazione != null}">
+            aggiornato il <strong th:text="${#temporals.format(fonteSintel.ultimaSincronizzazione, 'dd/MM/yyyy HH:mm')}"></strong>
+            &mdash;
+            <span th:if="${minAnnoSintel != null and maxAnnoSintel != null and minAnnoSintel == maxAnnoSintel}"
+                  th:text="'anno ' + ${minAnnoSintel}"></span>
+            <span th:if="${minAnnoSintel != null and maxAnnoSintel != null and minAnnoSintel != maxAnnoSintel}"
+                  th:text="'anni ' + ${minAnnoSintel} + '–' + ${maxAnnoSintel}"></span>
+            &mdash; <span th:text="${countSintel}"></span> record
+        </span>
+        <span th:unless="${fonteSintel != null and fonteSintel.ultimaSincronizzazione != null}" class="source-info-empty">mai aggiornato</span>
+    </div>
 </div>
 
 <div class="filter-panel">
@@ -95,17 +108,20 @@
         </div>
 
         <!-- Profili di ricerca rapida -->
-        <div th:if="${!profiliAttivi.isEmpty()}" class="profili-bar">
+        <div th:if="${!profiliAttivi.isEmpty()}" class="profili-bar"
+             th:with="profiliCount=${pname == null or #strings.isEmpty(pname) ? 0 : #strings.arraySplit(pname,'|').length}">
             <div class="profili-bar-label">Ricerche rapide:</div>
             <div class="profili-bar-buttons">
                 <button type="button"
                         th:each="p : ${profiliAttivi}"
                         class="btn-profilo"
-                        th:classappend="${pname == p.nome} ? ' btn-profilo-attivo' : ''"
+                        th:classappend="${pname != null and #strings.contains('|' + pname + '|', '|' + p.nome + '|')} ? ' btn-profilo-attivo' : ''"
                         th:attr="data-keywords=${p.keywords}, data-nome=${p.nome}, data-cpv=${p.cpvCodes != null ? p.cpvCodes : ''}"
                         th:text="${p.nome}"
                         onclick="selezionaProfilo(this)"></button>
             </div>
+            <span id="profiliCountLabel" class="profili-bar-none"
+                  th:text="${profiliCount == 0 ? 'Nessun profilo attivo' : (profiliCount == 1 ? '1 profilo attivo' : profiliCount + ' profili attivi')}">Nessun profilo attivo</span>
             <a href="/profili" class="profili-bar-gestisci">Gestisci →</a>
         </div>
         <div th:if="${profiliAttivi.isEmpty()}" class="profili-bar profili-bar-empty">
@@ -215,6 +231,31 @@
                                     <button type="button" class="multi-ftag-remove" onclick="this.closest('.multi-ftag').remove()">&#215;</button>
                                 </span>
                             </th:block>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box: Sintel Lombardia -->
+            <div class="filter-box">
+                <div class="filter-box-label filter-box-label-src">
+                    <div>
+                        <span>Sintel Lombardia</span>
+                        <span class="filter-box-subtitle">(gare Regione Lombardia)</span>
+                    </div>
+                    <label class="filter-source-toggle" title="Includi dati Sintel Lombardia">
+                        <input type="checkbox" name="enableSintel" value="true"
+                               th:checked="${enableSintel == null or enableSintel}"
+                               onchange="toggleSourceBox(this, 'boxSintelContent')">
+                    </label>
+                </div>
+                <div class="filter-box-content" id="boxSintelContent">
+                    <div class="filter-group">
+                        <div class="toggle-group">
+                            <div class="toggle-option-indicator"
+                                 th:classappend="${enableSintel == null or enableSintel} ? ' toggle-option-indicator-active' : ''">
+                                <span>Sintel</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -512,7 +553,7 @@
         <span id="profiloBadge"
               th:class="${!#strings.isEmpty(pq)} ? 'active-filter active-filter-profilo' : 'active-filter active-filter-profilo' + ' ' + 'hidden-badge'"
               th:style="${#strings.isEmpty(pq)} ? 'display:none' : ''">
-            Profilo: <span id="profiloBadgeName" th:text="${!#strings.isEmpty(pname) ? pname : #strings.abbreviate(pq, 30)}"></span>
+            Profilo: <span id="profiloBadgeName" th:text="${!#strings.isEmpty(pname) ? #strings.replace(pname,'|',', ') : #strings.abbreviate(pq, 30)}"></span>
             <button type="button" onclick="deselezionaProfilo()" style="background:none;border:none;cursor:pointer;margin-left:6px;color:inherit;opacity:0.7;font-size:0.9rem;padding:0;" title="Rimuovi profilo">&#215;</button>
         </span>
         <span th:if="${!#strings.isEmpty(q)}" class="active-filter">
@@ -753,6 +794,8 @@
 
 <form method="post" action="/import" id="importForm" style="display:none;"></form>
 <form method="post" action="/import-anac" id="importAnacForm" style="display:none;"></form>
+<form method="post" action="/import-sintel" id="importSintelForm" style="display:none;"></form>
+<form method="post" action="/import-ipa" id="importIpaForm" style="display:none;"></form>
 
 <script th:inline="javascript">
 const cpvData = /*[[${cpvList}]]*/ [];
@@ -813,57 +856,87 @@ function setView(mode) {
         .catch(function() { panel.style.display = 'none'; });
 })();
 
-// ======= Profili di ricerca rapida =======
-var profileCpvCodes = [];
+// ======= Profili di ricerca rapida (multi-selezione) =======
+// nome profilo -> { keywords: string, cpv: [codici] }
+var profiliSelezionati = {};
 
-function selezionaProfilo(btn) {
-    if (btn.classList.contains('btn-profilo-attivo')) {
-        deselezionaProfilo();
-        return;
-    }
-    var keywords = btn.dataset.keywords || '';
+// Inizializza dallo stato reso dal server (bottoni gia' attivi dopo un submit/reload)
+document.querySelectorAll('.btn-profilo.btn-profilo-attivo').forEach(function(btn) {
     var nome = btn.dataset.nome || '';
     var cpvRaw = btn.dataset.cpv || '';
-    document.getElementById('pqInput').value = keywords;
-    document.getElementById('pnameInput').value = nome;
-    document.querySelectorAll('.btn-profilo').forEach(function(b) { b.classList.remove('btn-profilo-attivo'); });
-    btn.classList.add('btn-profilo-attivo');
+    var cpv = cpvRaw.split(',').map(function(c) { return c.trim(); }).filter(Boolean);
+    profiliSelezionati[nome] = { keywords: btn.dataset.keywords || '', cpv: cpv };
+});
+
+function selezionaProfilo(btn) {
+    var nome = btn.dataset.nome || '';
+
+    if (btn.classList.contains('btn-profilo-attivo')) {
+        // Toggle off: rimuovi solo questo profilo, lasciando gli altri selezionati
+        btn.classList.remove('btn-profilo-attivo');
+        rimuoviCpvProfilo(nome);
+        delete profiliSelezionati[nome];
+    } else {
+        // Toggle on: aggiungi ai profili gia' attivi (multi-selezione)
+        var keywords = btn.dataset.keywords || '';
+        var cpvRaw = btn.dataset.cpv || '';
+        var cpv = cpvRaw.split(',').map(function(c) { return c.trim(); }).filter(Boolean);
+        profiliSelezionati[nome] = { keywords: keywords, cpv: cpv };
+        btn.classList.add('btn-profilo-attivo');
+        cpv.forEach(function(code) {
+            if (!selectedCpvs.has(code)) addCpvTag(code, cpvDescMapJs[code] || '');
+        });
+    }
+
+    aggiornaStatoProfili();
+}
+
+// Rimuove i CPV portati da un profilo, a meno che non servano ancora a un altro profilo attivo
+function rimuoviCpvProfilo(nome) {
+    var info = profiliSelezionati[nome];
+    if (!info) return;
+    info.cpv.forEach(function(code) {
+        var usatoAltrove = Object.keys(profiliSelezionati).some(function(n) {
+            return n !== nome && profiliSelezionati[n].cpv.indexOf(code) !== -1;
+        });
+        if (!usatoAltrove) {
+            var tag = Array.from(cpvTagsContainer.querySelectorAll('.cpv-tag')).find(function(t) { return t.dataset.code === code; });
+            if (tag) { selectedCpvs.delete(code); tag.remove(); }
+        }
+    });
+}
+
+// Ricalcola input nascosti (pq/pname), badge ed etichetta conteggio in base ai profili attivi
+function aggiornaStatoProfili() {
+    var nomi = Object.keys(profiliSelezionati);
+
+    document.getElementById('pqInput').value = nomi.map(function(n) { return profiliSelezionati[n].keywords; }).join(' ').trim();
+    document.getElementById('pnameInput').value = nomi.join('|');
+
     var badge = document.getElementById('profiloBadge');
     var badgeName = document.getElementById('profiloBadgeName');
-    if (badge) badge.style.display = '';
-    if (badgeName) badgeName.textContent = nome || keywords.substring(0, 30);
-
-    // Rimuovi CPV del profilo precedente, poi aggiungi quelli del nuovo
-    profileCpvCodes.forEach(function(code) {
-        var tag = Array.from(cpvTagsContainer.querySelectorAll('.cpv-tag')).find(function(t) { return t.dataset.code === code; });
-        if (tag) { selectedCpvs.delete(code); tag.remove(); }
-    });
-    profileCpvCodes = [];
-    if (cpvRaw.trim()) {
-        cpvRaw.split(',').map(function(c) { return c.trim(); }).filter(Boolean).forEach(function(code) {
-            if (!selectedCpvs.has(code)) {
-                addCpvTag(code, cpvDescMapJs[code] || '');
-                profileCpvCodes.push(code);
-            }
-        });
-        if (profileCpvCodes.length > 0) updateCpvDeselBtn();
+    if (nomi.length > 0) {
+        if (badge) badge.style.display = '';
+        if (badgeName) badgeName.textContent = nomi.join(', ');
+    } else if (badge) {
+        badge.style.display = 'none';
     }
+
+    var countLabel = document.getElementById('profiliCountLabel');
+    if (countLabel) {
+        countLabel.textContent = nomi.length === 0 ? 'Nessun profilo attivo'
+            : nomi.length === 1 ? '1 profilo attivo'
+            : nomi.length + ' profili attivi';
+    }
+
+    updateCpvDeselBtn();
 }
 
 function deselezionaProfilo() {
-    document.getElementById('pqInput').value = '';
-    document.getElementById('pnameInput').value = '';
     document.querySelectorAll('.btn-profilo').forEach(function(b) { b.classList.remove('btn-profilo-attivo'); });
-    var badge = document.getElementById('profiloBadge');
-    if (badge) badge.style.display = 'none';
-
-    // Rimuovi i CPV aggiunti dal profilo
-    profileCpvCodes.forEach(function(code) {
-        var tag = Array.from(cpvTagsContainer.querySelectorAll('.cpv-tag')).find(function(t) { return t.dataset.code === code; });
-        if (tag) { selectedCpvs.delete(code); tag.remove(); }
-    });
-    if (profileCpvCodes.length > 0) updateCpvDeselBtn();
-    profileCpvCodes = [];
+    Object.keys(profiliSelezionati).forEach(rimuoviCpvProfilo);
+    profiliSelezionati = {};
+    aggiornaStatoProfili();
 }
 
 // ======= Import =======

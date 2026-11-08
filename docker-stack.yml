@@ -1,3 +1,19 @@
+#Ecco i comandi, da eseguire su ~/bandi-monitor (il clone da cui gira lo stack Tailscale) dopo aver fatto push dal clone dev:
+#
+#  cd ~/bandi-monitor
+#  git pull
+#  mvn clean package -DskipTests
+#  docker compose up -d --build app
+#
+#Spiegazione rapida:
+#  1. git pull — porta le ultime modifiche pushate.
+#  2. mvn clean package -DskipTests — ricompila il jar.
+#  3. docker compose up -d --build app — ricostruisce e riavvia solo il container app (db/ollama/searxng restano su, nessuna interruzione per loro).
+#
+#Per verificare che sia tornato su:
+#  curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:8080
+#  HTTP 200 = tutto ok.
+
 services:
   app:
     image: bandi-monitor:latest

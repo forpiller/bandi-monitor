@@ -184,13 +184,15 @@ public final class BandoSpec {
         return (root, query, cb) -> cb.between(root.get("dataScadenza"), oggi, limite);
     }
 
-    public static Specification<Bando> includeSorgenti(Boolean enableConsip, Boolean enableAnac) {
+    public static Specification<Bando> includeSorgenti(Boolean enableConsip, Boolean enableAnac, Boolean enableSintel) {
         boolean incC = enableConsip == null || enableConsip;
         boolean incA = enableAnac == null || enableAnac;
-        if (incC && incA) return NEUTRO;
+        boolean incS = enableSintel == null || enableSintel;
+        if (incC && incA && incS) return NEUTRO;
         List<TipoDataset> allowed = new java.util.ArrayList<>();
         if (incC) { allowed.add(TipoDataset.GARE_ASP); allowed.add(TipoDataset.BANDI_GARE); }
         if (incA) allowed.add(TipoDataset.ANAC_CIG);
+        if (incS) allowed.add(TipoDataset.SINTEL_LOMBARDIA);
         if (allowed.isEmpty()) return (root, query, cb) -> cb.disjunction();
         return (root, query, cb) -> root.get("tipoDataset").in(allowed);
     }

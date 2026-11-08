@@ -70,6 +70,22 @@ public interface BandoRepository extends JpaRepository<Bando, Long>, JpaSpecific
             """, nativeQuery = true)
     List<Object[]> findStazioniAppaltantiConsipConConteggio();
 
+    @Query(value = """
+            SELECT sa.stazione_appaltante, sa.regione_pa, sa.tipo_amministrazione, sa.cnt
+            FROM (
+                SELECT b.stazione_appaltante, b.regione_pa, b.tipo_amministrazione,
+                       COUNT(*) AS cnt,
+                       ROW_NUMBER() OVER (PARTITION BY b.stazione_appaltante ORDER BY COUNT(*) DESC) AS rn
+                FROM bandi b
+                WHERE b.tipo_dataset = 'SINTEL_LOMBARDIA' AND b.stazione_appaltante IS NOT NULL
+                GROUP BY b.stazione_appaltante, b.regione_pa, b.tipo_amministrazione
+            ) sa
+            WHERE sa.rn = 1
+            ORDER BY sa.cnt DESC
+            LIMIT 500
+            """, nativeQuery = true)
+    List<Object[]> findStazioniAppaltantiSintelConDettagli();
+
     @Modifying
     @Transactional
     @Query("DELETE FROM Bando b WHERE b.tipoDataset = :tipo AND b.annoRiferimento = :anno")

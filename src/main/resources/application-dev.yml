@@ -1,6 +1,9 @@
+server:
+  port: 8081
+
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/bandi_monitor
+    url: jdbc:postgresql://localhost:5432/bandi_monitor_local
     username: bandi_monitor
     password: bandi_monitor
 
