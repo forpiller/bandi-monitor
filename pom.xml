@@ -99,6 +99,13 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- OpenAPI (per prova mcp-forge: genera /v3/api-docs) -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.1.1</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

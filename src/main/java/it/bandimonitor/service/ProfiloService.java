@@ -29,12 +29,12 @@ public class ProfiloService {
                 .toList();
     }
 
-    public void salva(String nome, String keywords, String cpvCodes) {
+    public Long salva(String nome, String keywords, String cpvCodes) {
         ProfiloInteresse p = new ProfiloInteresse();
         p.setNome(nome.trim());
         p.setKeywords(keywords.trim());
         p.setCpvCodes(cpvCodes != null && !cpvCodes.isBlank() ? cpvCodes.trim() : null);
-        profiloRepository.save(p);
+        return profiloRepository.save(p).getId();
     }
 
     public void aggiorna(Long id, String nome, String keywords, String cpvCodes) {
